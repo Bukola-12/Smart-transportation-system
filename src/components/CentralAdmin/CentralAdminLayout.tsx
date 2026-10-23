@@ -351,7 +351,7 @@ export const CentralAdminLayout: React.FC<CentralAdminLayoutProps> = ({
       {/* ======================================================== */}
       {/* 4. Main Responsive Content Area                         */}
       {/* ======================================================== */}
-      <main className="flex-1 p-4 sm:p-6 md:p-8 lg:p-10 max-w-7xl mx-auto overflow-y-auto w-full">
+      <main className="flex-1 px-3 sm:px-6 md:px-8 lg:px-10 py-4 sm:py-6 md:py-8 max-w-7xl mx-auto overflow-y-auto w-full">
         {children}
       </main>
     </div>

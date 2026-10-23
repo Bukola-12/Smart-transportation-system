@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole, AdminPermissions, WarningItem } from '../types';
 import { INITIAL_USERS } from '../data/mockData';
 import { supabase, uploadImage } from '../lib/supabase';
+import { sendAccountApprovalEmail } from '../lib/emailService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -329,6 +330,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     parkLocation: 'Campus Gate' | 'SUB',
     approvedBy: string
   ) => {
+    const targetUser = users.find((u) => u.id === userId);
+    if (targetUser && targetUser.email) {
+      sendAccountApprovalEmail(
+        targetUser.email,
+        targetUser.full_name,
+        'driver',
+        `Assigned Vehicle: ${vehicleAssigned} (${parkLocation}).`
+      );
+    }
+
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === userId) {
@@ -352,6 +363,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     permissions: AdminPermissions,
     approvedBy: string
   ) => {
+    const targetUser = users.find((u) => u.id === userId);
+    if (targetUser && targetUser.email) {
+      sendAccountApprovalEmail(
+        targetUser.email,
+        targetUser.full_name,
+        'park_admin',
+        `Assigned Park Jurisdiction: ${parkScope}.`
+      );
+    }
+
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === userId) {

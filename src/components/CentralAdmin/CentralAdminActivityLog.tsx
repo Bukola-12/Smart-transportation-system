@@ -62,13 +62,13 @@ export const CentralAdminActivityLog: React.FC = () => {
       </div>
 
       {/* Filter Chips (Matches Page 8 Screenshot: All, Driver status, Vehicle location, Bookings, Corrections) */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto w-full pb-1 no-scrollbar">
         {filterOptions.map((opt) => (
           <button
             key={opt}
             type="button"
             onClick={() => setSelectedFilter(opt)}
-            className={`py-2 px-5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+            className={`py-2 px-4 sm:px-5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
               selectedFilter === opt
                 ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
                 : 'bg-white dark:bg-[#151821] text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#1E2330] border border-gray-100 dark:border-[#252B3A]'
@@ -80,9 +80,9 @@ export const CentralAdminActivityLog: React.FC = () => {
       </div>
 
       {/* Activity Log Table Card */}
-      <div className="bg-white dark:bg-[#151821] rounded-3xl p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm font-medium">
+      <div className="bg-white dark:bg-[#151821] rounded-3xl p-4 sm:p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
+        <div className="overflow-x-auto -mx-1 sm:mx-0">
+          <table className="w-full text-left text-xs sm:text-sm font-medium min-w-[560px]">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 font-semibold">
                 <th className="pb-4 pt-2">Time</th>

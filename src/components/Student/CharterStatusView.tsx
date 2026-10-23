@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { 
   ArrowLeft, 
@@ -28,6 +29,7 @@ export const CharterStatusView: React.FC<CharterStatusViewProps> = ({
 }) => {
   const { bookings, cancelCharterRequest } = useApp();
   const { user } = useAuth();
+  const { confirm } = useConfirm();
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
   const booking = bookings.find((b) => b.id === bookingId) || bookings[0];
@@ -52,8 +54,18 @@ export const CharterStatusView: React.FC<CharterStatusViewProps> = ({
   const isCompleted = booking.status === 'Completed';
   const isCancelled = booking.status === 'Cancelled' || booking.status === 'Rejected';
 
-  const handleCancel = () => {
-    if (window.confirm('Are you sure you want to cancel this tricycle charter request?')) {
+  const handleCancel = async () => {
+    const ok = await confirm({
+      title: 'Cancel Charter Request',
+      message: 'Are you sure you want to cancel this tricycle charter request?\n\nIf a driver was already assigned, they will be freed up for other students.',
+      confirmText: 'Yes, Cancel Request',
+      cancelText: 'Keep Request',
+      variant: 'danger',
+      implicationText: 'Tricycle charter request cancelled.',
+      cancelImplicationText: 'Charter request remains active.',
+    });
+
+    if (ok) {
       cancelCharterRequest(booking.id, user?.full_name || 'Student', true);
     }
   };

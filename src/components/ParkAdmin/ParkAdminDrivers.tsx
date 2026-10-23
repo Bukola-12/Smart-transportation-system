@@ -5,11 +5,13 @@ import { StatusBadge } from '../Common/StatusBadge';
 import { UpdateDriverModal } from './UpdateDriverModal';
 import { CheckInDriverModal } from './CheckInDriverModal';
 import { DriverRecord, UserProfile, VehicleLocation, VehicleType } from '../../types';
+import { useConfirm } from '../../context/ConfirmContext';
 import { Search, Plus, Clock, CheckCircle, X, Shield, Phone, Mail, Car } from 'lucide-react';
 
 export const ParkAdminDrivers: React.FC = () => {
   const { drivers, vehicles, approveAndEnrollDriver } = useApp();
   const { user, users, approveDriverAccount, rejectAccountRegistration } = useAuth();
+  const { confirm } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
   const [search, setSearch] = useState('');
@@ -80,8 +82,18 @@ export const ParkAdminDrivers: React.FC = () => {
     setApprovingApplicant(null);
   };
 
-  const handleRejectApplicant = (applicantId: string, applicantName: string) => {
-    if (window.confirm(`Decline driver registration for ${applicantName}?`)) {
+  const handleRejectApplicant = async (applicantId: string, applicantName: string) => {
+    const ok = await confirm({
+      title: 'Decline Driver Registration',
+      message: `Are you sure you want to decline the driver registration application for ${applicantName}?\n\nThis will mark the driver account application as rejected.`,
+      confirmText: 'Decline Registration',
+      cancelText: 'Keep Application',
+      variant: 'danger',
+      implicationText: `Driver registration application for ${applicantName} was declined.`,
+      cancelImplicationText: 'Decline cancelled. Driver applicant remains in queue.',
+    });
+
+    if (ok) {
       rejectAccountRegistration(applicantId, user?.full_name || 'Park Admin');
       setApprovalMessage(`Registration for ${applicantName} was declined.`);
       setTimeout(() => setApprovalMessage(null), 3000);

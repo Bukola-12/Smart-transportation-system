@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import { UserProfile, AdminPermissions, VehicleType, VehicleLocation } from '../../types';
 import { 
   Plus, 
@@ -30,6 +31,7 @@ interface CentralAdminAccountsProps {
 
 export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOpenAddAdmin }) => {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const { 
     users, 
     updateUserPermissions, 
@@ -213,8 +215,18 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
     setApprovingDriver(null);
   };
 
-  const handleReject = (userId: string, name: string) => {
-    if (window.confirm(`Decline account registration for ${name}?`)) {
+  const handleReject = async (userId: string, name: string) => {
+    const ok = await confirm({
+      title: 'Decline Account Registration',
+      message: `Are you sure you want to decline the account registration for ${name}?\n\nThis will mark the registration application as rejected.`,
+      confirmText: 'Decline Application',
+      cancelText: 'Keep Application',
+      variant: 'danger',
+      implicationText: `Registration application for ${name} was declined.`,
+      cancelImplicationText: 'Decline action cancelled. Registration remains in review.',
+    });
+
+    if (ok) {
       rejectAccountRegistration(userId, currentUser?.full_name || 'Central Admin');
       setSuccessNotice(`Registration for ${name} was declined.`);
       setTimeout(() => setSuccessNotice(null), 3000);
@@ -277,8 +289,18 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
     setTargetUserForSuspension(null);
   };
 
-  const handleDeactivate = (u: UserProfile) => {
-    if (window.confirm(`Deactivate account for ${u.full_name} indefinitely?\nThey will be unable to log in until you reactivate their account.`)) {
+  const handleDeactivate = async (u: UserProfile) => {
+    const ok = await confirm({
+      title: 'Deactivate Account Indefinitely',
+      message: `Deactivate account for ${u.full_name} (${u.role.toUpperCase()}) indefinitely?\n\nThey will be unable to log in until you reactivate their account.`,
+      confirmText: 'Deactivate Account',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      implicationText: `Account for ${u.full_name} has been deactivated.`,
+      cancelImplicationText: 'Deactivation cancelled. Account remains active.',
+    });
+
+    if (ok) {
       deactivateUser(u.id, currentUser?.full_name || 'Central Admin');
       setSuccessNotice(`Account for ${u.full_name} has been deactivated.`);
       setTimeout(() => setSuccessNotice(null), 3500);
@@ -291,8 +313,18 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
     setTimeout(() => setSuccessNotice(null), 3500);
   };
 
-  const handleDeleteUser = (u: UserProfile) => {
-    if (window.confirm(`PERMANENTLY DELETE account for ${u.full_name} (${u.role.toUpperCase()})?\n\nThis will completely erase the user record from the system. Only Central Admin has the authority to delete accounts. This action CANNOT be undone.`)) {
+  const handleDeleteUser = async (u: UserProfile) => {
+    const ok = await confirm({
+      title: 'PERMANENTLY DELETE ACCOUNT',
+      message: `PERMANENTLY DELETE account for ${u.full_name} (${u.role.toUpperCase()})?\n\nThis will completely erase the user record from the system. Only Central Admin has the authority to delete accounts. This action CANNOT be undone.`,
+      confirmText: 'Permanently Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+      implicationText: `Account for ${u.full_name} has been permanently deleted from the database.`,
+      cancelImplicationText: 'Deletion cancelled. User account is safe.',
+    });
+
+    if (ok) {
       const res = deleteUser(u.id, currentUser?.full_name || 'Central Admin');
       if (res.success) {
         setSuccessNotice(`Account for ${u.full_name} was permanently removed.`);
@@ -351,11 +383,11 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
       )}
 
       {/* Filter Tabs */}
-      <div className="flex flex-wrap items-center gap-2 bg-[#EAECEF] dark:bg-[#1E2330] p-1.5 rounded-2xl w-fit transition-colors">
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-[#EAECEF] dark:bg-[#1E2330] p-1.5 rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar transition-colors">
         <button
           type="button"
           onClick={() => setActiveTab('park_admins')}
-          className={`py-2 px-5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`py-2 px-4 sm:px-5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
             activeTab === 'park_admins'
               ? 'bg-white text-gray-900 dark:bg-[#252B3A] dark:text-white shadow-xs'
               : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -367,7 +399,7 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
         <button
           type="button"
           onClick={() => setActiveTab('pending_admins')}
-          className={`py-2 px-5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+          className={`py-2 px-4 sm:px-5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'pending_admins'
               ? 'bg-white text-gray-900 dark:bg-[#252B3A] dark:text-white shadow-xs'
               : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -385,7 +417,7 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
         <button
           type="button"
           onClick={() => setActiveTab('pending_drivers')}
-          className={`py-2 px-5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+          className={`py-2 px-4 sm:px-5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'pending_drivers'
               ? 'bg-white text-gray-900 dark:bg-[#252B3A] dark:text-white shadow-xs'
               : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -403,14 +435,14 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
         <button
           type="button"
           onClick={() => setActiveTab('discipline')}
-          className={`py-2 px-5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+          className={`py-2 px-4 sm:px-5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'discipline'
               ? 'bg-white text-gray-900 dark:bg-[#252B3A] dark:text-white shadow-xs'
               : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
           }`}
         >
           <ShieldAlert className="w-3.5 h-3.5 text-purple-600" />
-          <span>Students & Drivers Discipline</span>
+          <span>Discipline & Actions</span>
         </button>
       </div>
 
@@ -418,9 +450,9 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
       {activeTab === 'park_admins' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Table (2 Cols Wide) */}
-          <div className="lg:col-span-2 bg-white dark:bg-[#151821] rounded-3xl p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm font-medium">
+          <div className="lg:col-span-2 bg-white dark:bg-[#151821] rounded-3xl p-4 sm:p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
+            <div className="overflow-x-auto -mx-1 sm:mx-0">
+              <table className="w-full text-left text-xs sm:text-sm font-medium min-w-[500px]">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 font-semibold">
                     <th className="pb-4 pt-2">Name</th>
@@ -756,10 +788,10 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
       {/* TAB 4: STUDENTS & DRIVERS DISCIPLINARY MANAGEMENT (CENTRAL ADMIN NO-CEILING) */}
       {activeTab === 'discipline' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-[#151821] rounded-3xl p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5 transition-colors">
+          <div className="bg-white dark:bg-[#151821] rounded-3xl p-4 sm:p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5 transition-colors">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                   <ShieldAlert className="w-5 h-5 text-purple-600" />
                   Students & Drivers Disciplinary Management
                 </h2>
@@ -769,7 +801,7 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
               </div>
 
               {/* Search Bar */}
-              <div className="relative min-w-[260px]">
+              <div className="relative w-full sm:w-72 shrink-0">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -783,14 +815,14 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
 
             {/* Filter Pills */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-400">Role:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 no-scrollbar">
+                <span className="text-xs font-semibold text-gray-400 shrink-0">Role:</span>
                 {(['all', 'student', 'driver', 'park_admin'] as const).map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setDisciplineRoleFilter(r)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       disciplineRoleFilter === r
                         ? 'bg-purple-600 text-white shadow-xs'
                         : 'bg-gray-100 dark:bg-[#1E2330] text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -801,14 +833,14 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
                 ))}
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-400">Status:</span>
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 no-scrollbar">
+                <span className="text-xs font-semibold text-gray-400 shrink-0">Status:</span>
                 {(['all', 'Active', 'Suspended', 'Deactivated'] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setDisciplineStatusFilter(s)}
-                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       disciplineStatusFilter === s
                         ? 'bg-black text-white dark:bg-white dark:text-black'
                         : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -821,8 +853,8 @@ export const CentralAdminAccounts: React.FC<CentralAdminAccountsProps> = ({ onOp
             </div>
 
             {/* Users Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm font-medium">
+            <div className="overflow-x-auto -mx-1 sm:mx-0">
+              <table className="w-full text-left text-xs sm:text-sm font-medium min-w-[650px]">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 font-semibold">
                     <th className="pb-3.5 pt-2">User / Contact</th>

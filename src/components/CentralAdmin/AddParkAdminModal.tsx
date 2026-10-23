@@ -11,7 +11,7 @@ export const AddParkAdminModal: React.FC<AddParkAdminModalProps> = ({ onClose })
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [parkScope, setParkScope] = useState<'Campus Gate' | 'SUB'>('Campus Gate');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('Admin@2026');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

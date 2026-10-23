@@ -113,13 +113,13 @@ export const CentralAdminBookings: React.FC = () => {
       )}
 
       {/* Filter Tabs (Matches Page 10 Screenshot) */}
-      <div className="flex flex-wrap items-center gap-1.5 bg-[#EAECEF] dark:bg-[#1E2330] p-1.5 rounded-2xl w-fit transition-colors">
+      <div className="flex items-center gap-1.5 bg-[#EAECEF] dark:bg-[#1E2330] p-1.5 rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar transition-colors">
         {filterTabs.map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => setActiveFilter(tab)}
-            className={`py-2 px-5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`py-2 px-4 sm:px-5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
               activeFilter === tab
                 ? 'bg-[#00C269] text-white shadow-xs font-black'
                 : 'text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white'
@@ -131,9 +131,9 @@ export const CentralAdminBookings: React.FC = () => {
       </div>
 
       {/* Bookings Table Card (Matches Page 10 Screenshot) */}
-      <div className="bg-white dark:bg-[#151821] rounded-3xl p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs sm:text-sm font-medium">
+      <div className="bg-white dark:bg-[#151821] rounded-3xl p-4 sm:p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
+        <div className="overflow-x-auto -mx-1 sm:mx-0">
+          <table className="w-full text-left text-xs sm:text-sm font-medium min-w-[700px]">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800 text-gray-400 font-semibold">
                 <th className="pb-4 pt-2">Booking</th>

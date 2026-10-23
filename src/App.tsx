@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider } from './context/AppContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import { DesktopHeader } from './components/DesktopHeader';
 import { MobileNav } from './components/MobileNav';
 import { Zap } from 'lucide-react';
@@ -277,7 +278,9 @@ export default function App() {
       <AuthProvider>
         <AppProvider>
           <ToastProvider>
-            <MainApp />
+            <ConfirmProvider>
+              <MainApp />
+            </ConfirmProvider>
           </ToastProvider>
         </AppProvider>
       </AuthProvider>

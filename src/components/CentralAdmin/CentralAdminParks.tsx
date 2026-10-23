@@ -33,7 +33,7 @@ export const CentralAdminParks: React.FC = () => {
           return (
             <div
               key={park.id}
-              className="bg-white dark:bg-[#151821] rounded-3xl p-6 sm:p-8 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6 transition-colors"
+              className="bg-white dark:bg-[#151821] rounded-3xl p-4 sm:p-8 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div>

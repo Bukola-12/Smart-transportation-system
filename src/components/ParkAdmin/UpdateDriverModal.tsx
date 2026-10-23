@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { DriverRecord, OperationalStatus, VehicleLocation } from '../../types';
+import { useConfirm } from '../../context/ConfirmContext';
 import { X } from 'lucide-react';
 
 interface UpdateDriverModalProps {
@@ -21,6 +22,7 @@ export const UpdateDriverModal: React.FC<UpdateDriverModalProps> = ({
     updateVehicleLocation,
     vehicles 
   } = useApp();
+  const { confirm } = useConfirm();
 
   const [status, setStatus] = useState<OperationalStatus>(driver.operational_status);
   const [location, setLocation] = useState<VehicleLocation>(driver.current_location);
@@ -42,8 +44,18 @@ export const UpdateDriverModal: React.FC<UpdateDriverModalProps> = ({
     onClose();
   };
 
-  const handleEndShift = () => {
-    if (window.confirm(`End shift for ${driver.name}?`)) {
+  const handleEndShift = async () => {
+    const ok = await confirm({
+      title: 'End Driver Shift',
+      message: `Are you sure you want to end the on-duty shift for driver ${driver.name} (${driver.vehicle_assigned}) on their behalf?`,
+      confirmText: 'End Shift',
+      cancelText: 'Keep Shift Active',
+      variant: 'warning',
+      implicationText: `Shift ended for driver ${driver.name}. Status set to Shift ended.`,
+      cancelImplicationText: 'Driver shift remains active.',
+    });
+
+    if (ok) {
       driverEndShift(driver.id, adminName, 'On behalf');
       onClose();
     }

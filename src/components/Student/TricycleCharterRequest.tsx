@@ -53,7 +53,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
 
   const [rideTier, setRideTier] = useState<'standard' | 'comfort' | 'preferred'>('standard');
   const [pickupNote, setPickupNote] = useState('');
-  const [passengerPhone, setPassengerPhone] = useState(user?.phone || '08031234567');
+  const [passengerPhone, setPassengerPhone] = useState(user?.phone || '');
   const [preferredDriverId, setPreferredDriverId] = useState<string>('');
   const [whenType, setWhenType] = useState<'Now' | 'In 15 min' | 'Pick time'>('Now');
   const [customTime, setCustomTime] = useState('');
@@ -159,6 +159,11 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
       return;
     }
 
+    if (!/^0\d{10}$/.test(passengerPhone.trim())) {
+      setError('Contact phone number must be exactly 11 numbers and start with 0 (e.g. 08012345678).');
+      return;
+    }
+
     let finalImageUrl: string | undefined = undefined;
     if (photoFile) {
       setIsUploadingPhoto(true);
@@ -176,8 +181,8 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
 
     const booking = submitCharterRequest({
       requesterId: user?.id || 'guest-student',
-      requesterName: user?.full_name || 'Adaeze N.',
-      requesterPhone: passengerPhone.trim() || user?.phone || '08031234567',
+      requesterName: user?.full_name || 'Student Passenger',
+      requesterPhone: passengerPhone.trim() || user?.phone || undefined,
       pickup: finalPickup,
       destination: finalDestination,
       pickupNote: pickupNote.trim() ? pickupNote.trim() : undefined,
@@ -579,11 +584,18 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
             <input
               type="tel"
               value={passengerPhone}
-              onChange={(e) => setPassengerPhone(e.target.value)}
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/\D/g, '').slice(0, 11);
+                setPassengerPhone(cleaned);
+              }}
+              maxLength={11}
               required
-              placeholder="e.g. 08031234567"
+              placeholder="e.g. 08012345678"
               className="w-full bg-[#F6F8FA] dark:bg-[#1E2330] border border-transparent focus:border-[#00C269] text-gray-900 dark:text-white rounded-2xl px-4 py-3 text-xs sm:text-sm font-mono font-bold outline-none"
             />
+            <span className="text-[11px] text-gray-400 dark:text-gray-500 block">
+              Must be exactly 11 numbers and start with 0.
+            </span>
           </div>
 
           <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
