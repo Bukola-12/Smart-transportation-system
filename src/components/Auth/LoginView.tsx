@@ -3,18 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { Logo } from '../Common/Logo';
-import { AlertCircle, Sun, Moon, Sparkles } from 'lucide-react';
+import { AlertCircle, Sun, Moon } from 'lucide-react';
 
 interface LoginViewProps {
   onGoToSignup: () => void;
 }
-
-const DEMO_ACCOUNTS = [
-  { label: 'Student', email: 'adaeze@university.edu', role: 'Student' },
-  { label: 'Driver', email: 'emeka@university.edu', role: 'Bus Driver' },
-  { label: 'Park Admin', email: 'folake@university.edu', role: 'Gate Admin' },
-  { label: 'Central Admin', email: 'centraladmin@university.edu', role: 'Central' },
-];
 
 export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
   const { login, isLoading } = useAuth();
@@ -37,12 +30,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
     } else {
       toast.success('Signed in successfully.');
     }
-  };
-
-  const fillDemoAccount = (email: string) => {
-    setIdentifier(email);
-    setPassword('password123');
-    setErrorMessage(null);
   };
 
   return (
@@ -120,36 +107,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
               />
             </div>
 
-            {/* Quick Demo Fill Pills */}
-            <div className="pt-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#00C269]" />
-                <span>Quick demo credentials:</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_ACCOUNTS.map((acc) => (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => fillDemoAccount(acc.email)}
-                    className="text-left px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-[#1E2330] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-gray-100 dark:border-gray-800 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-[#00C269] dark:hover:text-[#00C269] transition-all cursor-pointer flex items-center justify-between"
-                  >
-                    <span>{acc.label}</span>
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">Use</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-1 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => toast.info('Default demo password is password123')}
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-xs font-medium cursor-pointer"
-              >
-                Demo password: <span className="font-mono text-gray-700 dark:text-gray-300">password123</span>
-              </button>
-
+            <div className="pt-1 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => toast.info('Password reset instructions sent to your registered email.')}
