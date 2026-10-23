@@ -135,16 +135,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     const cleanId = identifier.trim().toLowerCase();
 
-    // Background Supabase Auth if applicable
-    if (cleanId.includes('@')) {
-      supabase.auth.signInWithPassword({
-        email: cleanId,
-        password: pass,
-      }).catch((e) => {
-        console.warn('Supabase auth note:', e);
-      });
-    }
-
     // Match in user database (by email or matric number)
     const matched = users.find(
       (u) =>
@@ -278,23 +268,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.warn('Image upload error during signup:', err);
       }
-    }
-
-    // Background Supabase auth sign-up if applicable
-    if (cleanEmail.includes('@')) {
-      supabase.auth.signUp({
-        email: cleanEmail,
-        password: data.password,
-        options: {
-          data: {
-            full_name: data.fullName,
-            role: data.role,
-            phone: data.phone,
-          },
-        },
-      }).catch((e) => {
-        console.warn('Supabase sign-up note:', e);
-      });
     }
 
     const isStudent = data.role === 'student';
