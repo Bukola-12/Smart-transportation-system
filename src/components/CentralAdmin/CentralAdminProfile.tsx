@@ -1,13 +1,33 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { ImageUpload } from '../Common/ImageUpload';
+import { ShieldCheck } from 'lucide-react';
 
 export const CentralAdminProfile: React.FC = () => {
-  const { user, logout, updateProfileImage } = useAuth();
+  const { user, users, logout, updateProfileImage } = useAuth();
+  const { activityLogs, bookings } = useApp();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
+
+  const parkAdminsCount = users.filter((u) => u.role === 'park_admin').length;
+  const issuesResolved = bookings.filter(
+    (b) => b.status === 'Completed' || b.status === 'Cancelled'
+  ).length;
+  const correctionsCount = activityLogs.filter(
+    (l) => l.category === 'Corrections' || l.method === 'Correction'
+  ).length;
+
+  const initials = user?.full_name
+    ? user.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'CA';
 
   return (
     <div className="space-y-6">
@@ -21,14 +41,14 @@ export const CentralAdminProfile: React.FC = () => {
         </h1>
       </div>
 
-      {/* Main Grid: Left Card, Right Stats (Matches Page 11 Screenshot) */}
+      {/* Main Grid: Left Card, Right Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Profile Card (Matches Page 11) */}
+        {/* Left Profile Card */}
         <div className="lg:col-span-2 bg-white dark:bg-[#151821] rounded-3xl p-6 sm:p-8 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6 transition-colors">
           <div className="flex items-center gap-4">
             <ImageUpload
               currentUrl={user?.avatar_url}
-              fallbackInitials="CA"
+              fallbackInitials={initials}
               onUpload={async (file) => {
                 await updateProfileImage(file);
               }}
@@ -37,10 +57,10 @@ export const CentralAdminProfile: React.FC = () => {
             />
             <div>
               <h2 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">
-                Central Admin
+                {user?.full_name || 'Central Admin'}
               </h2>
               <p className="text-xs text-gray-400 font-medium">
-                Central administrator
+                Central Administrator
               </p>
             </div>
           </div>
@@ -48,11 +68,11 @@ export const CentralAdminProfile: React.FC = () => {
           <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800 text-xs sm:text-sm">
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Email</span>
-              <span className="text-gray-900 dark:text-white font-bold">centraladmin@university.edu</span>
+              <span className="text-gray-900 dark:text-white font-bold">{user?.email || 'centraladmin@university.edu'}</span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Role</span>
-              <span className="text-gray-900 dark:text-white font-bold">Central administrator</span>
+              <span className="text-gray-900 dark:text-white font-bold">Central Administrator</span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Access</span>
@@ -60,7 +80,7 @@ export const CentralAdminProfile: React.FC = () => {
             </div>
           </div>
 
-          {/* Appearance Toggle (Matches Mockup Page 11) */}
+          {/* Appearance Toggle */}
           <div className="pt-2">
             <label className="block text-xs font-semibold text-gray-400 mb-2">
               Appearance
@@ -108,66 +128,63 @@ export const CentralAdminProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Stats & Recent Actions (Matches Page 11 Screenshot) */}
+        {/* Right Stats & Real Recent Actions */}
         <div className="space-y-6">
-          {/* 3 Metric Cards Row */}
+          {/* 3 Metric Cards Row (Real System Metrics) */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-white dark:bg-[#151821] rounded-2xl p-4 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
               <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                2
+                {parkAdminsCount}
               </span>
               <span className="text-[11px] text-gray-400 font-medium mt-1 block">
-                Park admins managed
+                Park admins
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#151821] rounded-2xl p-4 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
               <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                5
+                {issuesResolved}
               </span>
               <span className="text-[11px] text-gray-400 font-medium mt-1 block">
-                Issues resolved
+                Resolved trips
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#151821] rounded-2xl p-4 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
               <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                3
+                {correctionsCount}
               </span>
               <span className="text-[11px] text-gray-400 font-medium mt-1 block">
-                Corrections made
+                Corrections
               </span>
             </div>
           </div>
 
-          {/* Recent actions Card (Matches Page 11 Screenshot) */}
+          {/* Recent actions Card (Real Audit Logs) */}
           <div className="bg-white dark:bg-[#151821] rounded-3xl p-6 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4 transition-colors">
             <h3 className="font-bold text-gray-900 dark:text-white text-base">
-              Recent actions
+              Recent System Actions
             </h3>
 
-            <div className="space-y-4 text-xs">
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  Corrected Bus 07 location
-                </p>
-                <p className="text-gray-400 mt-0.5">12:48 PM</p>
+            {activityLogs.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 dark:text-gray-500 text-xs">
+                <ShieldCheck className="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 stroke-[1.5] mb-2" />
+                <p>No system activity logs recorded yet.</p>
               </div>
-
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  Suspended an admin account
-                </p>
-                <p className="text-gray-400 mt-0.5">Yesterday</p>
+            ) : (
+              <div className="space-y-4 text-xs">
+                {activityLogs.slice(0, 4).map((l) => (
+                  <div key={l.id}>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {l.entity}: {l.change}
+                    </p>
+                    <p className="text-gray-400 mt-0.5">
+                      {l.changed_by} ({l.method}) • {l.time}
+                    </p>
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white">
-                  Reviewed 1 unresolved booking
-                </p>
-                <p className="text-gray-400 mt-0.5">Yesterday</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

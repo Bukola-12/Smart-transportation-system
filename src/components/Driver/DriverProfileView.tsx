@@ -4,13 +4,38 @@ import { useApp } from '../../context/AppContext';
 import { useTheme } from '../../context/ThemeContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { ImageUpload } from '../Common/ImageUpload';
+import { ArrowRight, Car } from 'lucide-react';
 
 export const DriverProfileView: React.FC = () => {
   const { user, logout, updateProfileImage } = useAuth();
-  const { drivers } = useApp();
+  const { drivers, bookings } = useApp();
   const { theme, setTheme } = useTheme();
 
-  const currentDriver = drivers.find((d) => d.name === user?.full_name || d.user_id === user?.id) || drivers[0];
+  // Find driver record matching current user
+  const currentDriver = drivers.find(
+    (d) => d.user_id === user?.id || (user?.full_name && d.name.toLowerCase() === user.full_name.toLowerCase())
+  );
+
+  // Filter real charters handled by this driver
+  const driverBookings = bookings.filter(
+    (b) => b.assigned_driver_id === user?.id || (user?.full_name && b.assigned_driver_name?.toLowerCase() === user.full_name.toLowerCase())
+  );
+
+  const completedCharters = driverBookings.filter((b) => b.status === 'Completed').length;
+  const tripsToday = currentDriver?.trips_today ?? completedCharters;
+  const shiftStatus = currentDriver?.shift_status || 'Not checked in';
+
+  const vehicleAssigned = user?.vehicle_assigned || currentDriver?.vehicle_assigned || 'Pending vehicle';
+  const location = currentDriver?.current_location || user?.park_scope || 'Campus Gate';
+
+  const initials = user?.full_name
+    ? user.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'DR';
 
   return (
     <div className="pb-28 pt-4 md:py-8 px-5 md:px-8 max-w-4xl mx-auto">
@@ -24,8 +49,8 @@ export const DriverProfileView: React.FC = () => {
         <div className="md:col-span-5 bg-white dark:bg-[#151821] rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-6 transition-colors">
           <div className="flex items-center gap-4">
             <ImageUpload
-              currentUrl={user?.avatar_url || currentDriver.avatar_url}
-              fallbackInitials="EA"
+              currentUrl={user?.avatar_url || currentDriver?.avatar_url}
+              fallbackInitials={initials}
               onUpload={async (file) => {
                 await updateProfileImage(file);
               }}
@@ -34,10 +59,10 @@ export const DriverProfileView: React.FC = () => {
             />
             <div>
               <h2 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">
-                {currentDriver.name || 'Emeka A.'}
+                {user?.full_name || currentDriver?.name || 'Driver'}
               </h2>
               <p className="text-xs text-gray-400 font-medium mt-0.5">
-                Driver · {currentDriver.vehicle_assigned || 'Bus 04'}
+                Driver • {vehicleAssigned}
               </p>
             </div>
           </div>
@@ -45,19 +70,21 @@ export const DriverProfileView: React.FC = () => {
           <div className="space-y-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs sm:text-sm">
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Email</span>
-              <span className="text-gray-900 dark:text-white font-bold">{user?.email || 'emeka@university.edu'}</span>
+              <span className="text-gray-900 dark:text-white font-bold">{user?.email || 'N/A'}</span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Phone</span>
-              <span className="text-gray-900 dark:text-white font-mono font-bold">{user?.phone || currentDriver.phone || '08023456789'}</span>
+              <span className="text-gray-900 dark:text-white font-mono font-bold">
+                {user?.phone || currentDriver?.phone || 'Not provided'}
+              </span>
             </div>
             <div className="flex justify-between items-center py-1">
-              <span className="text-gray-400 font-medium">Role</span>
-              <span className="text-gray-900 dark:text-white font-bold">Driver</span>
+              <span className="text-gray-400 font-medium">Assigned Vehicle</span>
+              <span className="text-gray-900 dark:text-white font-bold">{vehicleAssigned}</span>
             </div>
             <div className="flex justify-between items-center py-1">
-              <span className="text-gray-400 font-medium">Location</span>
-              <span className="text-gray-900 dark:text-white font-bold">{currentDriver.current_location}</span>
+              <span className="text-gray-400 font-medium">Current Park</span>
+              <span className="text-gray-900 dark:text-white font-bold">{location}</span>
             </div>
             <div className="flex justify-between items-center py-1">
               <span className="text-gray-400 font-medium">Account Status</span>
@@ -81,23 +108,17 @@ export const DriverProfileView: React.FC = () => {
                 <div className="p-3 bg-red-100/80 dark:bg-red-950/60 rounded-xl text-xs text-red-800 dark:text-red-300">
                   <span className="font-bold block mb-0.5">Account Suspended</span>
                   {user.suspended_until
-                    ? `Until ${new Date(user.suspended_until).toLocaleDateString()} (${new Date(user.suspended_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                    ? `Until ${new Date(user.suspended_until).toLocaleDateString()}`
                     : 'Indefinitely'}
-                  {user.suspension_reason && (
-                    <p className="mt-1 italic">"{user.suspension_reason}"</p>
-                  )}
+                  {user.suspension_reason && <p className="mt-1 italic">"{user.suspension_reason}"</p>}
                 </div>
               )}
 
               {user.warnings && user.warnings.length > 0 && (
                 <div className="space-y-1.5 pt-1">
                   {user.warnings.map((w) => (
-                    <div key={w.id} className="text-[11px] bg-white dark:bg-[#1A1E29] p-2 rounded-xl border border-amber-100 dark:border-amber-900/40 text-gray-800 dark:text-gray-200">
-                      <div className="flex justify-between font-bold text-[10px] text-gray-400 mb-0.5">
-                        <span>{w.issued_by} ({w.issued_by_role === 'park_admin' ? 'Park Admin' : 'Central Admin'})</span>
-                        <span>{w.date}</span>
-                      </div>
-                      <p>{w.reason}</p>
+                    <div key={w.id} className="text-[11px] text-amber-900 dark:text-amber-300">
+                      <span className="font-semibold">• {w.date}:</span> {w.reason}
                     </div>
                   ))}
                 </div>
@@ -105,7 +126,7 @@ export const DriverProfileView: React.FC = () => {
             </div>
           )}
 
-          {/* Appearance (Matches Mockup Page 12) */}
+          {/* Appearance Toggle */}
           <div className="pt-2">
             <label className="block text-xs font-semibold text-gray-400 mb-2">
               Appearance
@@ -148,13 +169,13 @@ export const DriverProfileView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Stats & Recent */}
+        {/* Right Column: Dynamic Driver Stats & Recent Charters */}
         <div className="md:col-span-7 space-y-6">
-          {/* 3 Metric Cards Row (Matches Page 12) */}
+          {/* 3 Metric Cards Row (Real Driver Data) */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-white dark:bg-[#151821] rounded-3xl p-5 text-left border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
               <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                {currentDriver.trips_today || 5}
+                {tripsToday}
               </span>
               <span className="text-xs text-gray-400 font-medium mt-1 block">
                 Trips today
@@ -162,17 +183,17 @@ export const DriverProfileView: React.FC = () => {
             </div>
 
             <div className="bg-white dark:bg-[#151821] rounded-3xl p-5 text-left border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
-              <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                6 h
+              <span className="text-xl md:text-2xl font-extrabold text-gray-900 dark:text-white block leading-tight pt-1">
+                {shiftStatus}
               </span>
               <span className="text-xs text-gray-400 font-medium mt-1 block">
-                On duty
+                Shift status
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#151821] rounded-3xl p-5 text-left border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] transition-colors">
               <span className="text-3xl font-extrabold text-gray-900 dark:text-white block leading-tight">
-                {currentDriver.charters_completed || 3}
+                {completedCharters}
               </span>
               <span className="text-xs text-gray-400 font-medium mt-1 block">
                 Charters
@@ -180,31 +201,40 @@ export const DriverProfileView: React.FC = () => {
             </div>
           </div>
 
-          {/* Recent Activity Section */}
+          {/* Recent Activity Section (Real Driver Charters) */}
           <div className="bg-white dark:bg-[#151821] rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-[#252B3A] shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-4 transition-colors">
             <h3 className="text-base font-bold text-gray-900 dark:text-white">Recent Activity</h3>
 
-            <div className="space-y-3">
-              <div className="bg-[#F8F9FA] dark:bg-[#1A1E29] rounded-2xl p-4 flex items-center justify-between border border-gray-100 dark:border-gray-800 transition-colors">
-                <div>
-                  <h4 className="font-bold text-gray-900 dark:text-white text-sm">
-                    SUB → Main Library
-                  </h4>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">Charter trip</p>
-                </div>
-                <StatusBadge status="Completed" />
+            {driverBookings.length === 0 ? (
+              <div className="text-center py-8 space-y-2 text-gray-400 dark:text-gray-500">
+                <Car className="w-8 h-8 mx-auto text-gray-300 dark:text-gray-600 stroke-[1.5]" />
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">No charter trips assigned yet</p>
+                <p className="text-[11px] max-w-xs mx-auto">
+                  When you check in and accept tricycle charter orders, your completed passenger journeys will be listed here.
+                </p>
               </div>
-
-              <div className="bg-[#F8F9FA] dark:bg-[#1A1E29] rounded-2xl p-4 flex items-center justify-between border border-gray-100 dark:border-gray-800 transition-colors">
-                <div>
-                  <h4 className="font-bold text-gray-900 dark:text-white text-sm">
-                    Status confirmed
-                  </h4>
-                  <p className="text-xs text-gray-400 font-medium mt-0.5">By you · 12 min ago</p>
-                </div>
-                <StatusBadge status="Confirmed" />
+            ) : (
+              <div className="space-y-3">
+                {driverBookings.slice(0, 5).map((b) => (
+                  <div
+                    key={b.id}
+                    className="bg-[#F8F9FA] dark:bg-[#1A1E29] rounded-2xl p-4 flex items-center justify-between border border-gray-100 dark:border-gray-800 transition-colors"
+                  >
+                    <div>
+                      <h4 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-1.5">
+                        <span>{b.pickup}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-gray-400" />
+                        <span>{b.destination}</span>
+                      </h4>
+                      <p className="text-xs text-gray-400 font-medium mt-0.5">
+                        Passenger: {b.requester_name}
+                      </p>
+                    </div>
+                    <StatusBadge status={b.status} />
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
