@@ -18,6 +18,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const pendingVerificationEmail = (() => {
+    try {
+      const raw = localStorage.getItem('campusgo_pending_verification');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.email && parsed.expiresAt > Date.now()) {
+        return parsed.email as string;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  })();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
@@ -58,6 +72,26 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
               Sign in to check buses and request a tricycle.
             </p>
           </div>
+
+          {pendingVerificationEmail && (
+            <div className="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-800 text-xs sm:text-sm flex items-center justify-between shadow-xs">
+              <div className="space-y-0.5">
+                <span className="font-bold block text-xs uppercase tracking-wider text-[#00A86B] dark:text-[#34D186]">
+                  Active Verification Session
+                </span>
+                <p className="text-gray-600 dark:text-gray-300 text-xs">
+                  Continue verification for <strong>{pendingVerificationEmail}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onGoToSignup}
+                className="bg-[#00C269] hover:bg-[#00AB5D] text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-xs ml-3 shrink-0"
+              >
+                Resume &rarr;
+              </button>
+            </div>
+          )}
 
           {errorMessage && (
             <div className={`mb-6 p-4 rounded-2xl text-xs sm:text-sm flex items-start gap-3 border ${

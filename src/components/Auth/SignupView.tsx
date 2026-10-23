@@ -6,6 +6,7 @@ import { UserRole, VehicleType } from '../../types';
 import { ImageUpload } from '../Common/ImageUpload';
 import { Logo } from '../Common/Logo';
 import { sendVerificationOTP } from '../../lib/emailService';
+import { supabase } from '../../lib/supabase';
 import { 
   ArrowLeft, 
   AlertCircle, 
@@ -18,11 +19,12 @@ import {
   Sun, 
   Moon, 
   CheckCircle2, 
-  KeyRound, 
   RefreshCw,
   Eye,
   EyeOff
 } from 'lucide-react';
+
+const VERIFICATION_STORAGE_KEY = 'campusgo_pending_verification';
 
 interface SignupViewProps {
   onBackToLogin: () => void;
@@ -82,6 +84,52 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
   // Phone validation: exactly 11 digits, starts with 0
   const isPhoneValid = /^0\d{10}$/.test(phone.trim());
 
+  // Restore pending verification session on mount if one exists
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VERIFICATION_STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data && data.expiresAt && Date.now() < data.expiresAt && data.email) {
+          setFullName(data.fullName || '');
+          setEmail(data.email || '');
+          setPhone(data.phone || '');
+          setMatricNumber(data.matricNumber || '');
+          setRole(data.role || 'student');
+          if (data.parkScope) setParkScope(data.parkScope);
+          if (data.preferredVehicleType) setPreferredVehicleType(data.preferredVehicleType);
+          setPassword(data.password || '');
+          setConfirmPassword(data.password || '');
+          setGeneratedOtp(data.code || '');
+          if (Array.isArray(data.savedOtpInputs) && data.savedOtpInputs.length === 6) {
+            setOtpInputs(data.savedOtpInputs);
+          }
+          setIsVerifyingEmail(true);
+        } else {
+          localStorage.removeItem(VERIFICATION_STORAGE_KEY);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to restore pending verification session:', e);
+    }
+  }, []);
+
+  // Sync entered OTP digits to localStorage so tab switching doesn't lose progress
+  useEffect(() => {
+    if (isVerifyingEmail) {
+      try {
+        const saved = localStorage.getItem(VERIFICATION_STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          data.savedOtpInputs = otpInputs;
+          localStorage.setItem(VERIFICATION_STORAGE_KEY, JSON.stringify(data));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [otpInputs, isVerifyingEmail]);
+
   // Resend cooldown timer countdown
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -137,8 +185,30 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     setOtpError(null);
     setResendCooldown(30);
 
+    // Persist pending verification session to localStorage so switching to Gmail doesn't lose state
+    const pendingSession = {
+      fullName: fullName.trim(),
+      email: cleanEmail,
+      phone: phone.trim(),
+      matricNumber: matricNumber.trim(),
+      role,
+      parkScope: role === 'park_admin' ? parkScope : undefined,
+      preferredVehicleType: role === 'driver' ? preferredVehicleType : undefined,
+      password,
+      code: otp,
+      savedOtpInputs: ['', '', '', '', '', ''],
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 15 * 60 * 1000, // Valid 15 mins
+    };
+
+    try {
+      localStorage.setItem(VERIFICATION_STORAGE_KEY, JSON.stringify(pendingSession));
+    } catch (e) {
+      console.warn('Failed to save pending verification to localStorage', e);
+    }
+
     // Dispatch verification email with 6-digit code
-    sendVerificationOTP(email.trim(), fullName.trim(), otp);
+    sendVerificationOTP(cleanEmail, fullName.trim(), otp);
 
     // Switch view to OTP screen
     setIsVerifyingEmail(true);
@@ -190,8 +260,22 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     setOtpError(null);
     setResendCooldown(30);
 
+    // Update pending verification session in localStorage
+    try {
+      const saved = localStorage.getItem(VERIFICATION_STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        data.code = newOtp;
+        data.savedOtpInputs = ['', '', '', '', '', ''];
+        data.expiresAt = Date.now() + 15 * 60 * 1000;
+        localStorage.setItem(VERIFICATION_STORAGE_KEY, JSON.stringify(data));
+      }
+    } catch (e) {
+      console.warn('Failed to update pending verification', e);
+    }
+
     sendVerificationOTP(email.trim(), fullName.trim(), newOtp);
-    toast.info(`New 6-digit code sent to ${email.trim()}`);
+    toast.info(`New 6-digit verification code sent to ${email.trim()}. Please check your Gmail or email inbox.`);
   };
 
   // Complete Verification & Create Account
@@ -204,8 +288,44 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
       return;
     }
 
-    if (enteredCode !== generatedOtp) {
-      setOtpError('Incorrect verification code. Please check your email or resend the code.');
+    let isCodeValid = false;
+
+    // 1. Verify against active in-memory code
+    if (enteredCode === generatedOtp) {
+      isCodeValid = true;
+    } else {
+      // Check stored session in localStorage
+      try {
+        const saved = localStorage.getItem(VERIFICATION_STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (data && data.code === enteredCode) {
+            isCodeValid = true;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // 2. Check Supabase Auth verifyOtp
+      if (!isCodeValid) {
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({
+            email: email.trim(),
+            token: enteredCode,
+            type: 'email',
+          });
+          if (!error && data?.user) {
+            isCodeValid = true;
+          }
+        } catch (err) {
+          console.warn('Supabase OTP verification check:', err);
+        }
+      }
+    }
+
+    if (!isCodeValid) {
+      setOtpError('Incorrect verification code. Please check your email inbox or request a new code.');
       return;
     }
 
@@ -229,6 +349,13 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
       return;
     }
 
+    // Clear verification session now that account is activated
+    try {
+      localStorage.removeItem(VERIFICATION_STORAGE_KEY);
+    } catch (e) {
+      // ignore
+    }
+
     if (role === 'student') {
       toast.success('Email verified successfully! Welcome to CampusGo.');
       // Student is automatically logged in and redirected by App.tsx
@@ -245,6 +372,24 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
       });
       setIsVerifyingEmail(false);
     }
+  };
+
+  const handleBackToDetails = () => {
+    setIsVerifyingEmail(false);
+    try {
+      localStorage.removeItem(VERIFICATION_STORAGE_KEY);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleExitToLogin = () => {
+    try {
+      localStorage.removeItem(VERIFICATION_STORAGE_KEY);
+    } catch (e) {
+      // ignore
+    }
+    onBackToLogin();
   };
 
   // =========================================================================
@@ -346,7 +491,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
           <div className="pt-6 space-y-2">
             <button
               type="button"
-              onClick={onBackToLogin}
+              onClick={handleExitToLogin}
               className="w-full bg-[#00C269] hover:bg-[#00AB5D] active:scale-[0.99] text-white font-black py-3.5 rounded-2xl shadow-md shadow-emerald-500/25 text-sm transition-all cursor-pointer"
             >
               Return to Sign In
@@ -378,7 +523,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
             <div className="pt-2 pb-6 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setIsVerifyingEmail(false)}
+                onClick={handleBackToDetails}
                 className="p-2 -ml-2 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white rounded-2xl hover:bg-gray-100 dark:hover:bg-[#1E2330] transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
                 title="Back to edit registration details"
               >
@@ -407,23 +552,24 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
               </div>
             </div>
 
-            {/* Simulated Live Inbox Banner */}
-            <div className="mb-5 p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800/80 text-left">
-              <div className="flex items-center justify-between text-[11px] font-bold text-emerald-800 dark:text-emerald-300 mb-1">
-                <span className="flex items-center gap-1">
-                  <KeyRound className="w-3.5 h-3.5" />
-                  CampusGo Verification Email
-                </span>
-                <span className="font-mono text-[10px] bg-emerald-200/60 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
-                  Valid 10 mins
-                </span>
+            {/* Delivery Instructions Card (Code NOT shown on screen) */}
+            <div className="mb-5 p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 text-left">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-[#00C269] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-gray-900 dark:text-white">
+                    Check your email inbox
+                  </p>
+                  <p className="text-[12px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                    We've dispatched an email containing your 6-digit verification code to <strong className="text-gray-900 dark:text-white font-semibold">{email}</strong>.
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 pt-0.5 leading-normal">
+                    💡 If you switch to your Gmail app to retrieve the code, your session is safely preserved right here. Be sure to check your Spam or Junk folder if you don't see it immediately.
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-emerald-900 dark:text-emerald-200">
-                Your 6-digit code is:{' '}
-                <strong className="font-mono text-base tracking-widest text-[#00A86B] dark:text-[#34D186] font-extrabold ml-1">
-                  {generatedOtp}
-                </strong>
-              </p>
             </div>
 
             {otpError && (
@@ -489,7 +635,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
                 <button
                   type="button"
-                  onClick={() => setIsVerifyingEmail(false)}
+                  onClick={handleBackToDetails}
                   className="w-full text-center text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold py-1.5 cursor-pointer"
                 >
                   Change Email Address
@@ -512,7 +658,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
           <div className="pt-2 pb-6 flex items-center justify-between">
             <button
               type="button"
-              onClick={onBackToLogin}
+              onClick={handleExitToLogin}
               className="p-2 -ml-2 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white rounded-2xl hover:bg-gray-100 dark:hover:bg-[#1E2330] transition-colors cursor-pointer"
               title="Back to login"
             >
@@ -844,7 +990,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
               <button
                 type="button"
-                onClick={onBackToLogin}
+                onClick={handleExitToLogin}
                 className="w-full text-center text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white text-xs sm:text-sm font-medium py-2 cursor-pointer"
               >
                 Already have an account? <span className="font-semibold text-[#00C269]">Sign in</span>

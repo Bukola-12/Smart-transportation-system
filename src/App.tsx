@@ -60,7 +60,19 @@ const ViewLoader = () => (
 
 const MainApp: React.FC = () => {
   const { user } = useAuth();
-  const [isSigningUp, setIsSigningUp] = useState(false);
+  // Restore signup view if a pending email verification session is active in localStorage
+  const [isSigningUp, setIsSigningUp] = useState<boolean>(() => {
+    try {
+      const pending = localStorage.getItem('campusgo_pending_verification');
+      if (pending) {
+        const parsed = JSON.parse(pending);
+        return !!(parsed && parsed.email && parsed.expiresAt > Date.now());
+      }
+    } catch {
+      // fallback
+    }
+    return false;
+  });
 
   // Active navigation tabs for different roles
   const [studentTab, setStudentTab] = useState<string>('home');
@@ -76,10 +88,17 @@ const MainApp: React.FC = () => {
   // Central Admin Modal
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
 
-  // Reset tab states cleanly when user logs out
+  // Reset tab states cleanly when user logs out, but preserve pending verification session
   React.useEffect(() => {
     if (!user) {
-      setIsSigningUp(false);
+      try {
+        const pending = localStorage.getItem('campusgo_pending_verification');
+        if (!pending) {
+          setIsSigningUp(false);
+        }
+      } catch {
+        setIsSigningUp(false);
+      }
       setStudentTab('home');
       setDriverTab('shift');
       setParkAdminTab('overview');
