@@ -75,15 +75,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_USERS;
   });
 
-  // Default active user is Student (Adaeze N.) or last saved
+  // Default active user is null for new visitors or users who have logged out.
+  // Only restore session if a valid saved user ID exists in localStorage.
   const [user, setUser] = useState<UserProfile | null>(() => {
     const savedId = localStorage.getItem('campusgo_active_user_id');
     if (savedId) {
       const found = users.find((u) => u.id === savedId);
       if (found) return found;
     }
-    // Default to student
-    return users.find((u) => u.role === 'student') || users[0] || null;
+    // Return null so new users land directly on the Login / Signup screen
+    return null;
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -134,16 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     const cleanId = identifier.trim().toLowerCase();
 
-    // Check Supabase Auth if applicable
-    try {
-      if (cleanId.includes('@')) {
-        await supabase.auth.signInWithPassword({
-          email: cleanId,
-          password: pass,
-        });
-      }
-    } catch (e) {
-      console.warn('Supabase auth attempt skipped/errored:', e);
+    // Background Supabase Auth if applicable
+    if (cleanId.includes('@')) {
+      supabase.auth.signInWithPassword({
+        email: cleanId,
+        password: pass,
+      }).catch((e) => {
+        console.warn('Supabase auth note:', e);
+      });
     }
 
     // Match in user database (by email or matric number)
@@ -155,83 +154,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setIsLoading(false);
 
-    if (matched) {
-      // Check if suspension has expired
-      if (matched.status === 'Suspended' && matched.suspended_until && new Date(matched.suspended_until).getTime() <= Date.now()) {
-        const reactivated: UserProfile = {
-          ...matched,
-          status: 'Active',
-          suspended_until: undefined,
-          suspension_reason: undefined,
-          suspended_by: undefined,
-          suspended_by_role: undefined,
-        };
-        setUsers((prev) => prev.map((u) => (u.id === matched.id ? reactivated : u)));
-        setUser(reactivated);
-        return { success: true };
-      }
+    if (!matched) {
+      return {
+        success: false,
+        error: 'No account found with this email or matric number. Please check your credentials or create a new account.',
+      };
+    }
 
-      if (matched.status === 'Suspended') {
-        const untilStr = matched.suspended_until
-          ? ` until ${new Date(matched.suspended_until).toLocaleDateString()} (${new Date(matched.suspended_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
-          : ' indefinitely';
-        const issuerStr = matched.suspended_by
-          ? ` by ${matched.suspended_by}${matched.suspended_by_role === 'park_admin' ? ' (Park Admin)' : ' (Central Admin)'}`
-          : '';
-        const reasonStr = matched.suspension_reason ? ` Reason: "${matched.suspension_reason}".` : '';
-        return {
-          success: false,
-          error: `This account has been suspended${untilStr}${issuerStr}.${reasonStr} You cannot use core app functionalities until the suspension is resolved.`,
-        };
-      }
+    // Check password if set on user (or default password123)
+    const expectedPass = matched.password || 'password123';
+    if (pass.trim() && pass.trim() !== expectedPass) {
+      return {
+        success: false,
+        error: 'Incorrect password. Please verify your credentials and try again.',
+      };
+    }
 
-      if (matched.status === 'Deactivated') {
-        return {
-          success: false,
-          error: 'This account has been deactivated by Central Administration. You cannot log in until Central Admin reactivates your account.',
-        };
-      }
-      if (matched.status === 'Pending approval') {
-        if (matched.role === 'driver') {
-          return {
-            success: false,
-            error: 'Your driver account registration is pending approval by a Park Admin or Central Admin. You will be able to log in once your credentials and vehicle assignment are verified.',
-          };
-        }
-        if (matched.role === 'park_admin') {
-          return {
-            success: false,
-            error: 'Your Park Admin account registration is pending verification by Central Admin. Central Admin must confirm your administrative credentials before you can log in.',
-          };
-        }
-        return {
-          success: false,
-          error: 'Your account is pending administrator verification.',
-        };
-      }
-      if (matched.status === 'Rejected') {
-        return {
-          success: false,
-          error: 'This account registration was declined by administration. Please contact campus transport support.',
-        };
-      }
-      setUser(matched);
+    // Check if suspension has expired
+    if (matched.status === 'Suspended' && matched.suspended_until && new Date(matched.suspended_until).getTime() <= Date.now()) {
+      const reactivated: UserProfile = {
+        ...matched,
+        status: 'Active',
+        suspended_until: undefined,
+        suspension_reason: undefined,
+        suspended_by: undefined,
+        suspended_by_role: undefined,
+      };
+      setUsers((prev) => prev.map((u) => (u.id === matched.id ? reactivated : u)));
+      setUser(reactivated);
+      localStorage.setItem('campusgo_active_user_id', reactivated.id);
       return { success: true };
     }
 
-    // If identifier doesn't match default users, create a dynamic student user so testing is painless
-    const newStudent: UserProfile = {
-      id: `user-${Date.now()}`,
-      email: cleanId.includes('@') ? cleanId : `${cleanId}@university.edu`,
-      full_name: cleanId.split('@')[0].toUpperCase(),
-      matric_number: cleanId.includes('/') ? cleanId.toUpperCase() : undefined,
-      role: 'student',
-      status: 'Active',
-      created_at: new Date().toISOString(),
-    };
+    if (matched.status === 'Suspended') {
+      const untilStr = matched.suspended_until
+        ? ` until ${new Date(matched.suspended_until).toLocaleDateString()} (${new Date(matched.suspended_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+        : ' indefinitely';
+      const issuerStr = matched.suspended_by
+        ? ` by ${matched.suspended_by}${matched.suspended_by_role === 'park_admin' ? ' (Park Admin)' : ' (Central Admin)'}`
+        : '';
+      const reasonStr = matched.suspension_reason ? ` Reason: "${matched.suspension_reason}".` : '';
+      return {
+        success: false,
+        error: `This account has been suspended${untilStr}${issuerStr}.${reasonStr} You cannot use core app functionalities until the suspension is resolved.`,
+      };
+    }
 
-    setUsers((prev) => [...prev, newStudent]);
-    setUser(newStudent);
+    if (matched.status === 'Deactivated') {
+      return {
+        success: false,
+        error: 'This account has been deactivated by Central Administration. You cannot log in until Central Admin reactivates your account.',
+      };
+    }
+
+    if (matched.status === 'Pending approval') {
+      if (matched.role === 'driver') {
+        return {
+          success: false,
+          error: 'Your driver account registration is pending approval by a Park Admin or Central Admin. You will be able to log in once your credentials and vehicle assignment are verified.',
+        };
+      }
+      if (matched.role === 'park_admin') {
+        return {
+          success: false,
+          error: 'Your Park Admin account registration is pending verification by Central Admin. Central Admin must confirm your administrative credentials before you can log in.',
+        };
+      }
+      return {
+        success: false,
+        error: 'Your account is pending administrator verification.',
+      };
+    }
+
+    if (matched.status === 'Rejected') {
+      return {
+        success: false,
+        error: 'This account registration was declined by administration. Please contact campus transport support.',
+      };
+    }
+
+    // Valid active login
+    setUser(matched);
+    localStorage.setItem('campusgo_active_user_id', matched.id);
     return { success: true };
   };
 
@@ -247,6 +251,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     avatarFile?: File;
   }) => {
     setIsLoading(true);
+
+    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanMatric = data.matricNumber?.trim().toLowerCase();
+
+    // Check if an account already exists
+    const existing = users.find(
+      (u) =>
+        u.email.toLowerCase() === cleanEmail ||
+        (cleanMatric && u.matric_number && u.matric_number.toLowerCase() === cleanMatric)
+    );
+
+    if (existing) {
+      setIsLoading(false);
+      return {
+        success: false,
+        error: 'An account with this email or matric number already exists. Please sign in instead.',
+      };
+    }
+
     let avatarUrl: string | undefined = undefined;
 
     if (data.avatarFile) {
@@ -257,10 +280,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Try Supabase auth sign-up
-    try {
-      await supabase.auth.signUp({
-        email: data.email,
+    // Background Supabase auth sign-up if applicable
+    if (cleanEmail.includes('@')) {
+      supabase.auth.signUp({
+        email: cleanEmail,
         password: data.password,
         options: {
           data: {
@@ -269,9 +292,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             phone: data.phone,
           },
         },
+      }).catch((e) => {
+        console.warn('Supabase sign-up note:', e);
       });
-    } catch (e) {
-      console.warn('Supabase sign-up note:', e);
     }
 
     const isStudent = data.role === 'student';
@@ -279,7 +302,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newUser: UserProfile = {
       id: `user-${Date.now()}`,
-      email: data.email.toLowerCase(),
+      email: cleanEmail,
+      password: data.password,
       full_name: data.fullName,
       phone: data.phone,
       matric_number: data.matricNumber,
@@ -307,8 +331,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Drivers & Park Admins must wait for verification/approval
     if (isStudent) {
       setUser(newUser);
+      localStorage.setItem('campusgo_active_user_id', newUser.id);
     } else {
       setUser(null);
+      localStorage.removeItem('campusgo_active_user_id');
     }
 
     setIsLoading(false);
@@ -391,6 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Supabase sign-out:', e);
     }
+    localStorage.removeItem('campusgo_active_user_id');
     setUser(null);
   };
 

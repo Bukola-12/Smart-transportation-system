@@ -41,6 +41,7 @@ export interface UserProfile {
   full_name: string;
   matric_number?: string;
   role: UserRole;
+  password?: string;
   avatar_url?: string;
   park_scope?: 'Campus Gate' | 'SUB' | 'All';
   status: UserAccountStatus;

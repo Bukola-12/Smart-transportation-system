@@ -75,7 +75,19 @@ const MainApp: React.FC = () => {
   // Central Admin Modal
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
 
-  // If user is not logged in
+  // Reset tab states cleanly when user logs out
+  React.useEffect(() => {
+    if (!user) {
+      setIsSigningUp(false);
+      setStudentTab('home');
+      setDriverTab('shift');
+      setParkAdminTab('overview');
+      setCentralAdminTab('overview');
+      setStudentActiveBookingId(null);
+    }
+  }, [user]);
+
+  // If user is not logged in, show Auth screens
   if (!user) {
     if (isSigningUp) {
       return (
