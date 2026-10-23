@@ -159,5 +159,3 @@ Use the **SWEP Role Simulator** in the top right corner to instantly switch betw
 | **Park Admin** | Folake T. | `folake@university.edu` | Campus Gate Car Park |
 | **Park Admin** | Samuel D. | `samuel@university.edu` | SUB Car Park |
 | **Central Admin** | Central Admin | `centraladmin@university.edu` | System-wide oversight |
-
-
