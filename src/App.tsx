@@ -6,6 +6,7 @@ import { ToastProvider } from './context/ToastContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import { DesktopHeader } from './components/DesktopHeader';
 import { MobileNav } from './components/MobileNav';
+import { AddPhoneNumberModal } from './components/Common/AddPhoneNumberModal';
 import { Zap } from 'lucide-react';
 
 // Lightweight Auth views
@@ -268,6 +269,9 @@ const MainApp: React.FC = () => {
         activeTab={getActiveTab()}
         setActiveTab={setActiveTab}
       />
+
+      {/* Prompt user to add phone number if missing (e.g. Google OAuth sign-in) */}
+      <AddPhoneNumberModal />
     </div>
   );
 };

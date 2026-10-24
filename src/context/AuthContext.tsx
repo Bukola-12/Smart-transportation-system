@@ -20,10 +20,7 @@ interface AuthContextType {
     email: string,
     passwordAttempt?: string
   ) => Promise<{ verified: boolean; status?: UserAccountStatus }>;
-  verifyEmailOtp: (
-    email: string,
-    tokenOrLink: string
-  ) => Promise<{ success: boolean; error?: string; status?: UserAccountStatus }>;
+  updatePhoneNumber: (phoneNumber: string) => { success: boolean; error?: string };
   signup: (data: {
     fullName: string;
     email: string;
@@ -349,106 +346,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { verified: false, status: 'Unconfirmed' };
   };
 
-  // Verify email using 6-digit OTP code or pasted link/token
-  const verifyEmailOtp = async (
-    emailToVerify: string,
-    tokenOrLink: string
-  ): Promise<{ success: boolean; error?: string; status?: UserAccountStatus }> => {
-    try {
-      setIsLoading(true);
-      const cleanEmail = emailToVerify.trim().toLowerCase();
-      const raw = tokenOrLink.trim();
-
-      // Case A: User pasted a full URL or fragment containing hash params (e.g. from localhost:3000/#access_token=...)
-      if (raw.includes('access_token=') || (raw.includes('#') && raw.includes('='))) {
-        const hashPart = raw.includes('#') ? raw.split('#')[1] : raw;
-        const params = new URLSearchParams(hashPart);
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-
-        if (accessToken && refreshToken) {
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (error) {
-            setIsLoading(false);
-            return { success: false, error: error.message };
-          }
-          if (data?.user) {
-            syncSupabaseAuthUser(data.user);
-            const targetUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
-            const status: UserAccountStatus = targetUser?.role === 'student' ? 'Active' : 'Pending approval';
-            setIsLoading(false);
-            return { success: true, status };
-          }
-        }
-      }
-
-      // Case B: User pasted a confirmation URL with query param token/token_hash
-      let tokenToUse = raw;
-      if (raw.includes('token=') || raw.includes('token_hash=')) {
-        try {
-          const dummyUrl = new URL(raw.startsWith('http') ? raw : `https://example.com?${raw}`);
-          tokenToUse = dummyUrl.searchParams.get('token') || dummyUrl.searchParams.get('token_hash') || raw;
-        } catch {
-          // ignore
-        }
-      }
-
-      // Case C: Standard OTP or token verification with Supabase
-      // Try type 'signup'
-      let { data, error } = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: tokenToUse,
-        type: 'signup',
-      });
-
-      // Fallback try type 'email'
-      if (error) {
-        const emailRetry = await supabase.auth.verifyOtp({
-          email: cleanEmail,
-          token: tokenToUse,
-          type: 'email',
-        });
-        if (!emailRetry.error) {
-          data = emailRetry.data;
-          error = null;
-        }
-      }
-
-      if (error) {
-        setIsLoading(false);
-        return { success: false, error: error.message || 'Invalid verification code or token.' };
-      }
-
-      if (data?.user) {
-        syncSupabaseAuthUser(data.user);
-      }
-
-      // Update local user state
-      let updatedStatus: UserAccountStatus = 'Active';
-      setUsers((prev) => {
-        return prev.map((u) => {
-          if (u.email.toLowerCase() === cleanEmail) {
-            updatedStatus = u.role === 'student' ? 'Active' : 'Pending approval';
-            const updated = { ...u, status: updatedStatus };
-            if (updatedStatus === 'Active') {
-              setUser(updated);
-              localStorage.setItem('campusgo_active_user_id', updated.id);
-            }
-            return updated;
-          }
-          return u;
-        });
-      });
-
-      setIsLoading(false);
-      return { success: true, status: updatedStatus };
-    } catch (err: any) {
-      setIsLoading(false);
-      return { success: false, error: err?.message || 'Failed to verify code.' };
+  // Update current user's phone number (e.g. for Google OAuth signups)
+  const updatePhoneNumber = (phoneNumber: string): { success: boolean; error?: string } => {
+    const clean = phoneNumber.trim();
+    if (!/^0\d{10}$/.test(clean)) {
+      return {
+        success: false,
+        error: 'Phone number must consist of exactly 11 digits and start with 0 (e.g. 08012345678).',
+      };
     }
+    if (!user) {
+      return { success: false, error: 'No active user found.' };
+    }
+
+    const updatedUser: UserProfile = {
+      ...user,
+      phone: clean,
+    };
+
+    setUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.id === user.id ? updatedUser : u)));
+    return { success: true };
   };
 
   const login = async (identifier: string, pass: string) => {
@@ -1027,7 +945,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         resendVerificationEmail,
         checkEmailVerification,
-        verifyEmailOtp,
+        updatePhoneNumber,
         signup,
         logout,
         switchUser,
