@@ -35,7 +35,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-ca',
     email: 'centraladmin@university.edu',
-    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
+    password: 'sha256_2f41eb435f433d1df538cea1cdfaf553f6f29a5f26b922931d480a847751b983',
     full_name: 'Central Admin',
     phone: '08011223344',
     role: 'central_admin',

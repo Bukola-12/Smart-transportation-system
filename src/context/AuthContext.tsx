@@ -83,7 +83,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const saved = localStorage.getItem('campusgo_users');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: UserProfile[] = JSON.parse(saved);
+        const initialCA = INITIAL_USERS.find((init) => init.id === 'user-ca');
+        if (initialCA) {
+          return parsed.map((u) => {
+            if (u.id === 'user-ca' || u.role === 'central_admin') {
+              return { ...u, password: initialCA.password };
+            }
+            return u;
+          });
+        }
+        return parsed;
       } catch (e) {
         console.error(e);
       }
