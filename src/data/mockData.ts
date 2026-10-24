@@ -35,7 +35,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-ca',
     email: 'centraladmin@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Central Admin',
     phone: '08011223344',
     role: 'central_admin',
@@ -52,7 +52,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-pa-1',
     email: 'folake@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Folake T.',
     phone: '08090123456',
     role: 'park_admin',
@@ -70,7 +70,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-pa-2',
     email: 'samuel@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Samuel D.',
     phone: '08076543210',
     role: 'park_admin',
@@ -88,7 +88,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-pa-3',
     email: 'hauwa@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Hauwa B.',
     phone: '08089998877',
     role: 'park_admin',
@@ -106,7 +106,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-1',
     email: 'emeka@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Emeka A.',
     phone: '08023456789',
     role: 'driver',
@@ -117,7 +117,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-2',
     email: 'tunde@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Tunde B.',
     phone: '08134567890',
     role: 'driver',
@@ -128,7 +128,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-3',
     email: 'sade@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Sade I.',
     phone: '08056789012',
     role: 'driver',
@@ -139,7 +139,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-st-1',
     email: 'adaeze@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     matric_number: 'CSC/2021/042',
     full_name: 'Adaeze N.',
     phone: '08031234567',
@@ -150,7 +150,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-st-2',
     email: 'chinedu@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     matric_number: 'CSC/2020/088',
     full_name: 'Chinedu O.',
     phone: '08043219876',
@@ -170,7 +170,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-st-3',
     email: 'blessing@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     matric_number: 'LAW/2022/104',
     full_name: 'Blessing K.',
     phone: '08077665544',
@@ -181,7 +181,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-st-4',
     email: 'ibrahim.m@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     matric_number: 'ECN/2021/019',
     full_name: 'Ibrahim M.',
     phone: '08033445566',
@@ -205,7 +205,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-ibrahim',
     email: 'ibrahim.driver@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Ibrahim K.',
     phone: '08167890123',
     role: 'driver',
@@ -216,7 +216,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-kemi',
     email: 'kemi.driver@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Kemi O.',
     phone: '08123456780',
     role: 'driver',
@@ -227,7 +227,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-dr-pending',
     email: 'babatunde@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Babatunde L.',
     phone: '08061234999',
     role: 'driver',
@@ -238,7 +238,7 @@ export const INITIAL_USERS: UserProfile[] = [
   {
     id: 'user-pa-pending',
     email: 'kehinde@university.edu',
-    password: 'password123',
+    password: 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7',
     full_name: 'Kehinde A.',
     phone: '08129876543',
     role: 'park_admin',

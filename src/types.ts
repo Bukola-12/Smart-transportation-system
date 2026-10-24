@@ -25,7 +25,7 @@ export interface AdminPermissions {
   manage_bookings_other_parks: boolean;
 }
 
-export type UserAccountStatus = 'Active' | 'Suspended' | 'Pending approval' | 'Rejected' | 'Deactivated';
+export type UserAccountStatus = 'Active' | 'Suspended' | 'Pending approval' | 'Rejected' | 'Deactivated' | 'Unconfirmed';
 
 export interface WarningItem {
   id: string;

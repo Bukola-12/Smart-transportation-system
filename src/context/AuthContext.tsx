@@ -1,13 +1,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, UserRole, AdminPermissions, WarningItem } from '../types';
+import { UserProfile, UserRole, UserAccountStatus, AdminPermissions, WarningItem } from '../types';
 import { INITIAL_USERS } from '../data/mockData';
 import { supabase, uploadImage } from '../lib/supabase';
 import { sendAccountApprovalEmail } from '../lib/emailService';
+import { hashPassword, verifyPassword } from '../lib/crypto';
 
 interface AuthContextType {
   user: UserProfile | null;
   users: UserProfile[];
-  login: (identifier: string, pass: string) => Promise<{ success: boolean; error?: string }>;
+  login: (identifier: string, pass: string) => Promise<{ 
+    success: boolean; 
+    error?: string; 
+    isUnconfirmed?: boolean; 
+    email?: string 
+  }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  checkEmailVerification: (email: string) => Promise<{ verified: boolean; status?: UserAccountStatus }>;
   signup: (data: {
     fullName: string;
     email: string;
@@ -20,8 +29,10 @@ interface AuthContextType {
     avatarFile?: File;
   }) => Promise<{ 
     success: boolean; 
+    needsEmailVerification?: boolean;
     pendingApproval?: boolean; 
     role?: UserRole; 
+    email?: string;
     message?: string;
     error?: string;
   }>;
@@ -90,10 +101,91 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync users to localStorage
+  // Sync users to localStorage (all passwords stored are encrypted hashes)
   useEffect(() => {
     localStorage.setItem('campusgo_users', JSON.stringify(users));
   }, [users]);
+
+  // Synchronize authenticated Supabase session (Google OAuth or email confirmation)
+  const syncSupabaseAuthUser = (authUser: any) => {
+    const email = authUser.email?.toLowerCase();
+    if (!email) return;
+
+    setUsers((currentUsers) => {
+      const existing = currentUsers.find((u) => u.email.toLowerCase() === email);
+
+      if (existing) {
+        const isEmailConfirmed = !!authUser.email_confirmed_at || authUser.app_metadata?.provider === 'google';
+
+        // Once email is verified:
+        // - Students: reactivated / activated immediately into Active status
+        // - Drivers & Park Admins: put under approval (Pending approval)
+        let newStatus: UserAccountStatus = existing.status;
+        if (isEmailConfirmed && (existing.status === 'Unconfirmed' || (existing.status as string) === 'Pending approval' && existing.role === 'student')) {
+          newStatus = existing.role === 'student' ? 'Active' : 'Pending approval';
+        }
+
+        const updated: UserProfile = {
+          ...existing,
+          status: newStatus,
+          avatar_url: existing.avatar_url || authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+        };
+
+        if (newStatus === 'Active') {
+          setUser(updated);
+          localStorage.setItem('campusgo_active_user_id', updated.id);
+        }
+
+        return currentUsers.map((u) => (u.id === existing.id ? updated : u));
+      } else {
+        // New user signing in via Google OAuth
+        const fullName =
+          authUser.user_metadata?.full_name ||
+          authUser.user_metadata?.name ||
+          email.split('@')[0];
+        const role: UserRole = (authUser.user_metadata?.role as UserRole) || 'student';
+        const initialStatus: UserAccountStatus = role === 'student' ? 'Active' : 'Pending approval';
+
+        const newUser: UserProfile = {
+          id: authUser.id || `user-${Date.now()}`,
+          email,
+          full_name: fullName,
+          role,
+          avatar_url: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+          status: initialStatus,
+          created_at: new Date().toISOString(),
+        };
+
+        if (initialStatus === 'Active') {
+          setUser(newUser);
+          localStorage.setItem('campusgo_active_user_id', newUser.id);
+        }
+
+        return [...currentUsers, newUser];
+      }
+    });
+  };
+
+  // Listen to Supabase Auth state events (Google OAuth login, email confirmation link callback)
+  useEffect(() => {
+    // 1. Check existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        syncSupabaseAuthUser(session.user);
+      }
+    });
+
+    // 2. Subscribe to auth events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        syncSupabaseAuthUser(session.user);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Check and auto-lift expired suspensions
   useEffect(() => {
@@ -132,6 +224,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
+  // Sign in or log in with Google via Supabase OAuth
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        setIsLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err?.message || 'Failed to initialize Google authentication.' };
+    }
+  };
+
+  // Resend email verification via Supabase Auth
+  const resendVerificationEmail = async (emailToResend: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const clean = emailToResend.trim().toLowerCase();
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: clean,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to resend confirmation email.' };
+    }
+  };
+
+  // Check verification status of an account
+  const checkEmailVerification = async (
+    emailToCheck: string
+  ): Promise<{ verified: boolean; status?: UserAccountStatus }> => {
+    const clean = emailToCheck.trim().toLowerCase();
+    const targetUser = users.find((u) => u.email.toLowerCase() === clean);
+
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser && authUser.email?.toLowerCase() === clean && authUser.email_confirmed_at) {
+        if (targetUser) {
+          const newStatus: UserAccountStatus = targetUser.role === 'student' ? 'Active' : 'Pending approval';
+          const updated: UserProfile = { ...targetUser, status: newStatus };
+          setUsers((prev) => prev.map((u) => (u.id === targetUser.id ? updated : u)));
+          if (newStatus === 'Active') {
+            setUser(updated);
+            localStorage.setItem('campusgo_active_user_id', updated.id);
+          }
+          return { verified: true, status: newStatus };
+        }
+      }
+    } catch (e) {
+      console.warn('Check email verification note:', e);
+    }
+
+    if (targetUser && targetUser.status !== 'Unconfirmed') {
+      return { verified: true, status: targetUser.status };
+    }
+
+    return { verified: false, status: 'Unconfirmed' };
+  };
+
   const login = async (identifier: string, pass: string) => {
     setIsLoading(true);
     const cleanId = identifier.trim().toLowerCase();
@@ -143,23 +311,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (u.matric_number && u.matric_number.toLowerCase() === cleanId)
     );
 
-    setIsLoading(false);
-
     if (!matched) {
+      setIsLoading(false);
       return {
         success: false,
         error: 'No account found with this email or matric number. Please check your credentials or create a new account.',
       };
     }
 
-    // Check password if set on user (or default password123)
-    const expectedPass = matched.password || 'password123';
-    if (pass.trim() && pass.trim() !== expectedPass) {
+    // Verify encrypted password (with fallback to default if not set)
+    const isPassValid = await verifyPassword(
+      pass.trim(),
+      matched.password || 'sha256_b9518d6cfcd1df20d8c49c0d38dc1d588fe1e0f2f1ce0dab2df7d0c630621fa7'
+    );
+
+    if (!isPassValid) {
+      setIsLoading(false);
       return {
         success: false,
         error: 'Incorrect password. Please verify your credentials and try again.',
       };
     }
+
+    // Auto-upgrade unhashed legacy password in storage to encrypted format
+    if (matched.password && !matched.password.startsWith('sha256_')) {
+      const encrypted = await hashPassword(pass.trim());
+      setUsers((prev) => prev.map((u) => (u.id === matched.id ? { ...u, password: encrypted } : u)));
+    }
+
+    // Check Supabase Auth confirmation status if user registered with Supabase
+    try {
+      const { error: supaErr } = await supabase.auth.signInWithPassword({
+        email: matched.email,
+        password: pass.trim(),
+      });
+      if (supaErr && supaErr.message.toLowerCase().includes('email not confirmed')) {
+        setIsLoading(false);
+        return {
+          success: false,
+          error: 'Your email address has not been confirmed yet. Please verify your email using the link sent to your inbox.',
+          isUnconfirmed: true,
+          email: matched.email,
+        };
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Check if account status is unconfirmed (awaiting email verification)
+    if (matched.status === 'Unconfirmed') {
+      setIsLoading(false);
+      return {
+        success: false,
+        error: 'Your email address has not been confirmed yet. Please check your inbox for the Supabase verification link before signing in.',
+        isUnconfirmed: true,
+        email: matched.email,
+      };
+    }
+
+    setIsLoading(false);
 
     // Check if suspension has expired
     if (matched.status === 'Suspended' && matched.suspended_until && new Date(matched.suspended_until).getTime() <= Date.now()) {
@@ -261,6 +471,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
+    // Encrypt password before storing in database / localStorage
+    const encryptedPassword = await hashPassword(data.password);
+
+    // Call Supabase Auth to register user & dispatch email verification
+    let needsEmailVerification = false;
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: data.password, // Supabase Auth bcrypt-encrypts password on server
+        options: {
+          data: {
+            full_name: data.fullName,
+            phone: data.phone,
+            matric_number: data.matricNumber,
+            role: data.role,
+            park_scope: data.parkScope,
+            preferred_vehicle_type: data.preferredVehicleType,
+          },
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (authError) {
+        console.warn('[Supabase Auth signUp Notice]:', authError.message);
+        if (authError.message.toLowerCase().includes('already registered')) {
+          setIsLoading(false);
+          return {
+            success: false,
+            error: 'An account with this email is already registered. Please sign in instead.',
+          };
+        }
+      } else if (authData.user && !authData.session) {
+        // User created; Supabase Auth dispatched email confirmation link!
+        needsEmailVerification = true;
+      }
+    } catch (supaErr) {
+      console.warn('[Supabase Auth signUp Exception]:', supaErr);
+    }
+
     let avatarUrl: string | undefined = undefined;
 
     if (data.avatarFile) {
@@ -272,12 +521,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const isStudent = data.role === 'student';
-    const initialStatus = isStudent ? 'Active' : 'Pending approval';
+    // If Supabase Auth requires email verification, set status to 'Unconfirmed'
+    // Once verified: student will be reactivated to 'Active', driver/park_admin to 'Pending approval'
+    const initialStatus: UserAccountStatus = needsEmailVerification
+      ? 'Unconfirmed'
+      : isStudent
+      ? 'Active'
+      : 'Pending approval';
 
     const newUser: UserProfile = {
       id: `user-${Date.now()}`,
       email: cleanEmail,
-      password: data.password,
+      password: encryptedPassword, // ENCRYPTED HASH ONLY - NEVER PLAINTEXT!
       full_name: data.fullName,
       phone: data.phone,
       matric_number: data.matricNumber,
@@ -301,9 +556,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUsers((prev) => [...prev, newUser]);
 
-    // ONLY student accounts are immediately logged in!
-    // Drivers & Park Admins must wait for verification/approval
-    if (isStudent) {
+    // ONLY immediately active accounts are logged in right away
+    if (initialStatus === 'Active') {
       setUser(newUser);
       localStorage.setItem('campusgo_active_user_id', newUser.id);
     } else {
@@ -314,9 +568,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
     return { 
       success: true, 
-      pendingApproval: !isStudent, 
+      needsEmailVerification,
+      pendingApproval: !isStudent && !needsEmailVerification, 
       role: data.role,
-      message: isStudent 
+      email: cleanEmail,
+      message: needsEmailVerification
+        ? 'Verification email sent via Supabase Auth. Please confirm your email.'
+        : isStudent 
         ? 'Student account created successfully.' 
         : data.role === 'driver'
         ? 'Driver account submitted. Pending approval from Park Admin or Central Admin.'
@@ -606,6 +864,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         users,
         login,
+        loginWithGoogle,
+        resendVerificationEmail,
+        checkEmailVerification,
         signup,
         logout,
         switchUser,

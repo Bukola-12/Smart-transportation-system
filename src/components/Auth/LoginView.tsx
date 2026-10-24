@@ -3,20 +3,23 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { Logo } from '../Common/Logo';
-import { AlertCircle, Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { GoogleIcon } from '../Common/GoogleIcon';
+import { AlertCircle, Sun, Moon, Eye, EyeOff, Mail } from 'lucide-react';
 
 interface LoginViewProps {
   onGoToSignup: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
-  const { login, isLoading } = useAuth();
+  const { login, loginWithGoogle, resendVerificationEmail, isLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,11 +28,37 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
       return;
     }
     setErrorMessage(null);
+    setUnconfirmedEmail(null);
+
     const result = await login(identifier, password);
     if (!result.success) {
-      setErrorMessage(result.error || 'Failed to sign in. Check your details.');
+      if (result.isUnconfirmed && result.email) {
+        setUnconfirmedEmail(result.email);
+      } else {
+        setErrorMessage(result.error || 'Failed to sign in. Check your details.');
+      }
     } else {
       toast.success('Signed in successfully.');
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setErrorMessage(null);
+    setUnconfirmedEmail(null);
+    const result = await loginWithGoogle();
+    if (!result.success) {
+      setErrorMessage(result.error || 'Failed to initialize Google login.');
+    }
+  };
+
+  const handleResendUnconfirmed = async (targetEmail: string) => {
+    setIsResending(true);
+    const result = await resendVerificationEmail(targetEmail);
+    setIsResending(false);
+    if (result.success) {
+      toast.success(`Verification email resent to ${targetEmail}. Please check your inbox or spam.`);
+    } else {
+      toast.error(result.error || 'Failed to resend confirmation email.');
     }
   };
 
@@ -59,6 +88,40 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
             </p>
           </div>
 
+          {/* Unconfirmed Email Notice via Supabase Auth */}
+          {unconfirmedEmail && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-xs sm:text-sm space-y-3">
+              <div className="flex items-start gap-2.5">
+                <Mail className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold block uppercase tracking-wider text-xs text-amber-900 dark:text-amber-200">
+                    Email Verification Required
+                  </span>
+                  <p className="text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
+                    Your account registration for <strong>{unconfirmedEmail}</strong> is awaiting email verification. Please check your inbox for the Supabase confirmation link.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+                <button
+                  type="button"
+                  disabled={isResending}
+                  onClick={() => handleResendUnconfirmed(unconfirmedEmail)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isResending ? 'Sending...' : 'Resend Verification Email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnconfirmedEmail(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xs py-2 px-2 cursor-pointer font-medium"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {errorMessage && (
             <div className={`mb-6 p-4 rounded-2xl text-xs sm:text-sm flex items-start gap-3 border ${
               errorMessage.toLowerCase().includes('pending')
@@ -78,6 +141,27 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
               </div>
             </div>
           )}
+
+          {/* Google Sign In Option */}
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
+              className="w-full bg-white dark:bg-[#1E2330] hover:bg-gray-50 dark:hover:bg-[#252B3A] text-gray-800 dark:text-gray-100 font-bold py-3.5 px-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs text-sm sm:text-base transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
+            >
+              <GoogleIcon className="w-5 h-5 shrink-0" />
+              <span>Continue with Google</span>
+            </button>
+
+            <div className="relative my-5 flex items-center justify-center">
+              <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
+              <span className="bg-white dark:bg-[#151821] px-3 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Or sign in with email
+              </span>
+              <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
+            </div>
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

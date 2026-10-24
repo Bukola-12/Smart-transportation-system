@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { UserRole, VehicleType } from '../../types';
 import { ImageUpload } from '../Common/ImageUpload';
 import { Logo } from '../Common/Logo';
+import { GoogleIcon } from '../Common/GoogleIcon';
 import { 
   ArrowLeft, 
   AlertCircle, 
@@ -18,7 +19,8 @@ import {
   Moon, 
   CheckCircle2, 
   Eye, 
-  EyeOff 
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 
 interface SignupViewProps {
@@ -26,7 +28,7 @@ interface SignupViewProps {
 }
 
 export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
-  const { signup, isLoading, users } = useAuth();
+  const { signup, loginWithGoogle, resendVerificationEmail, checkEmailVerification, isLoading, users } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
 
@@ -44,6 +46,11 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
   const [avatarFile, setAvatarFile] = useState<File | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Email verification state for Supabase Auth
+  const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   // Pending approval screen state (for drivers & park admins)
   const [pendingRegistration, setPendingRegistration] = useState<{
     role: UserRole;
@@ -53,6 +60,15 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     parkScope?: string;
     vehicleType?: string;
   } | null>(null);
+
+  // Resend cooldown timer countdown
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (resendCooldown > 0) {
+      timer = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   // Password validation checks
   const passwordValidations = {
@@ -71,7 +87,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
   // Phone validation: exactly 11 digits, starts with 0
   const isPhoneValid = /^0\d{10}$/.test(phone.trim());
 
-  // Handle Form Submission -> Directly Register Account
+  // Handle Form Submission -> Register Account with Supabase Auth & Email Verification
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -110,7 +126,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
     setErrorMessage(null);
 
-    // Call AuthContext signup directly
+    // Call AuthContext signup (which encrypts password and registers with Supabase Auth)
     const result = await signup({
       fullName: fullName.trim(),
       email: cleanEmail,
@@ -125,6 +141,14 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
     if (!result.success) {
       setErrorMessage(result.error || 'Failed to complete registration.');
+      return;
+    }
+
+    // If Supabase Auth requires email verification
+    if (result.needsEmailVerification) {
+      setVerifyingEmail(cleanEmail);
+      setResendCooldown(30);
+      toast.info(`Supabase verification email sent to ${cleanEmail}. Please check your inbox.`);
       return;
     }
 
@@ -145,8 +169,146 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     }
   };
 
+  const handleGoogleSignUp = async () => {
+    setErrorMessage(null);
+    const result = await loginWithGoogle();
+    if (!result.success) {
+      setErrorMessage(result.error || 'Failed to initialize Google authentication.');
+    }
+  };
+
+  const handleCheckVerificationStatus = async () => {
+    if (!verifyingEmail) return;
+    setIsCheckingStatus(true);
+    const check = await checkEmailVerification(verifyingEmail);
+    setIsCheckingStatus(false);
+
+    if (check.verified) {
+      if (role === 'student') {
+        toast.success('Email verified successfully! Welcome to CampusGo.');
+        // User state will update and App.tsx automatically switches to home
+      } else {
+        toast.success('Email verified successfully! Your account is now listed for administrator approval.');
+        setPendingRegistration({
+          role,
+          fullName: fullName.trim(),
+          email: verifyingEmail,
+          phone: phone.trim(),
+          parkScope: role === 'park_admin' ? parkScope : undefined,
+          vehicleType: role === 'driver' ? preferredVehicleType : undefined,
+        });
+        setVerifyingEmail(null);
+      }
+    } else {
+      toast.info('Email verification is pending. Please click the confirmation link in your Gmail or email inbox.');
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (resendCooldown > 0 || !verifyingEmail) return;
+    setResendCooldown(30);
+    const result = await resendVerificationEmail(verifyingEmail);
+    if (result.success) {
+      toast.success(`Verification email resent to ${verifyingEmail}. Please check your inbox or spam folder.`);
+    } else {
+      toast.error(result.error || 'Failed to resend confirmation email.');
+    }
+  };
+
   // =========================================================================
-  // SCREEN 1: PENDING APPROVAL CONFIRMATION (for Drivers & Park Admins)
+  // SCREEN 1: SUPABASE EMAIL VERIFICATION SCREEN
+  // =========================================================================
+  if (verifyingEmail) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0D1017] flex flex-col justify-center items-center p-4 sm:p-8 transition-colors">
+        <div className="w-full max-w-md bg-white dark:bg-[#151821] sm:rounded-3xl sm:border border-gray-100 dark:border-[#252B3A] sm:shadow-[0_4px_24px_rgba(0,0,0,0.04)] p-6 sm:p-10 flex flex-col justify-between transition-colors">
+          <div>
+            <div className="pt-2 pb-6 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setVerifyingEmail(null)}
+                className="p-2 -ml-2 text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white rounded-2xl hover:bg-gray-100 dark:hover:bg-[#1E2330] transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+                title="Back to registration"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back</span>
+              </button>
+              <Logo size="sm" />
+              <div className="w-8" />
+            </div>
+
+            <div className="text-center space-y-3 mb-6">
+              <div className="w-16 h-16 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 text-[#00C269] flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800 shadow-sm">
+                <Mail className="w-8 h-8" />
+              </div>
+
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-900/50 px-3 py-1 rounded-full inline-block">
+                  Supabase Auth · Email Verification
+                </span>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white pt-2">
+                  Verify Your Email
+                </h1>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto leading-relaxed">
+                  We have dispatched a verification email to{' '}
+                  <strong className="text-gray-800 dark:text-gray-200 block font-bold text-sm mt-0.5">
+                    {verifyingEmail}
+                  </strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 text-left space-y-2 text-xs">
+              <p className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-[#00C269]" />
+                Verification Process
+              </p>
+              <div className="text-[12px] text-gray-600 dark:text-gray-300 leading-relaxed space-y-1">
+                <p>1. Open your Gmail or email app and click the confirmation link.</p>
+                <p>2. <strong>Students:</strong> Your account is automatically reactivated and logged in.</p>
+                <p>3. <strong>Drivers & Park Admins:</strong> Your account is immediately listed for administrator approval.</p>
+              </div>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 pt-1">
+                💡 Don't forget to check your Spam or Junk folder if the email takes a moment to appear.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleCheckVerificationStatus}
+                disabled={isCheckingStatus}
+                className="w-full bg-[#00C269] hover:bg-[#00AB5D] active:scale-[0.99] text-white font-black py-4 rounded-2xl shadow-md shadow-emerald-500/25 text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                <span>{isCheckingStatus ? 'Checking confirmation...' : 'I Have Verified My Email / Refresh'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendCooldown > 0}
+                className="w-full text-center text-xs font-bold text-[#00C269] hover:underline py-2 cursor-pointer disabled:opacity-50"
+              >
+                {resendCooldown > 0 ? `Resend confirmation email (${resendCooldown}s)` : 'Resend confirmation email'}
+              </button>
+
+              <button
+                type="button"
+                onClick={onBackToLogin}
+                className="w-full text-center text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white text-xs font-semibold py-1.5 cursor-pointer"
+              >
+                Return to Sign In
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // SCREEN 2: PENDING APPROVAL CONFIRMATION (for Drivers & Park Admins)
   // =========================================================================
   if (pendingRegistration) {
     const isDriver = pendingRegistration.role === 'driver';
@@ -162,7 +324,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
             <div className="space-y-1">
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-900/50 px-3 py-1 rounded-full inline-block">
-                Pending Administrator Approval
+                Email Verified · Pending Administrator Approval
               </span>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white pt-1">
                 Account Listed for Approval
@@ -170,12 +332,12 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
               <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-normal max-w-sm mx-auto">
                 {isDriver && (
                   <>
-                    Your registration has been submitted! Driver accounts must first be approved and assigned a vehicle by a <strong>Park Admin</strong> or <strong>Central Admin</strong>. Once approved, you will be able to log in to CampusGo.
+                    Your email is verified! Driver accounts must first be approved and assigned a vehicle by a <strong>Park Admin</strong> or <strong>Central Admin</strong>. Once approved, you will be able to log in to CampusGo.
                   </>
                 )}
                 {isParkAdmin && (
                   <>
-                    Your registration has been submitted! Park Admin accounts must first be verified and granted park permissions by <strong>Central Admin</strong>. Once approved, you will be able to log in to CampusGo.
+                    Your email is verified! Park Admin accounts must first be verified and granted park permissions by <strong>Central Admin</strong>. Once approved, you will be able to log in to CampusGo.
                   </>
                 )}
               </p>
@@ -307,6 +469,27 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
               <span>{errorMessage}</span>
             </div>
           )}
+
+          {/* Google Sign Up Button */}
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={handleGoogleSignUp}
+              disabled={isLoading}
+              className="w-full bg-white dark:bg-[#1E2330] hover:bg-gray-50 dark:hover:bg-[#252B3A] text-gray-800 dark:text-gray-100 font-bold py-3.5 px-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs text-sm sm:text-base transition-all flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50 active:scale-[0.99]"
+            >
+              <GoogleIcon className="w-5 h-5 shrink-0" />
+              <span>Sign up with Google</span>
+            </button>
+
+            <div className="relative my-5 flex items-center justify-center">
+              <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
+              <span className="bg-white dark:bg-[#151821] px-3 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Or register with email
+              </span>
+              <div className="border-t border-gray-200 dark:border-gray-800 w-full" />
+            </div>
+          </div>
 
           <form onSubmit={handleSignupSubmit} className="space-y-4">
             {/* Avatar Photo Upload */}
