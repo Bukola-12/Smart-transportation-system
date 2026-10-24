@@ -14,9 +14,16 @@ interface AuthContextType {
     isUnconfirmed?: boolean; 
     email?: string 
   }>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string; isProviderDisabled?: boolean }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
-  checkEmailVerification: (email: string) => Promise<{ verified: boolean; status?: UserAccountStatus }>;
+  checkEmailVerification: (
+    email: string,
+    passwordAttempt?: string
+  ) => Promise<{ verified: boolean; status?: UserAccountStatus }>;
+  verifyEmailOtp: (
+    email: string,
+    tokenOrLink: string
+  ) => Promise<{ success: boolean; error?: string; status?: UserAccountStatus }>;
   signup: (data: {
     fullName: string;
     email: string;
@@ -182,6 +189,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    // 3. Clean up auth tokens or errors from URL hash after parsing
+    if (window.location.hash.includes('access_token=') || window.location.hash.includes('error=')) {
+      setTimeout(() => {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }, 1200);
+    }
+
     return () => {
       subscription.unsubscribe();
     };
@@ -225,7 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   // Sign in or log in with Google via Supabase OAuth
-  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string; isProviderDisabled?: boolean }> => {
     try {
       setIsLoading(true);
       const { error } = await supabase.auth.signInWithOAuth({
@@ -237,13 +251,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         setIsLoading(false);
-        return { success: false, error: error.message };
+        const isNotEnabled =
+          error.message.toLowerCase().includes('provider is not enabled') ||
+          error.message.toLowerCase().includes('unsupported provider');
+        return {
+          success: false,
+          error: isNotEnabled
+            ? 'Google Sign-In is not enabled yet in your Supabase project. The administrator needs to configure Google OAuth in the Supabase Dashboard.'
+            : error.message,
+          isProviderDisabled: isNotEnabled,
+        };
       }
 
       return { success: true };
     } catch (err: any) {
       setIsLoading(false);
-      return { success: false, error: err?.message || 'Failed to initialize Google authentication.' };
+      const msg = err?.message || 'Failed to initialize Google authentication.';
+      const isNotEnabled =
+        msg.toLowerCase().includes('provider is not enabled') ||
+        msg.toLowerCase().includes('unsupported provider');
+      return {
+        success: false,
+        error: isNotEnabled
+          ? 'Google Sign-In is not enabled yet in your Supabase project. The administrator needs to configure Google OAuth in the Supabase Dashboard.'
+          : msg,
+        isProviderDisabled: isNotEnabled,
+      };
     }
   };
 
@@ -270,13 +303,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check verification status of an account
   const checkEmailVerification = async (
-    emailToCheck: string
+    emailToCheck: string,
+    passwordAttempt?: string
   ): Promise<{ verified: boolean; status?: UserAccountStatus }> => {
     const clean = emailToCheck.trim().toLowerCase();
     const targetUser = users.find((u) => u.email.toLowerCase() === clean);
 
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // 1. Check current Supabase Auth user session
+      let authUser: any = null;
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      authUser = currentUser;
+
+      // 2. If no active session, try checking with password attempt
+      if (!authUser && passwordAttempt) {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: clean,
+          password: passwordAttempt,
+        });
+        if (signInData?.user) {
+          authUser = signInData.user;
+        }
+      }
+
       if (authUser && authUser.email?.toLowerCase() === clean && authUser.email_confirmed_at) {
         if (targetUser) {
           const newStatus: UserAccountStatus = targetUser.role === 'student' ? 'Active' : 'Pending approval';
@@ -300,12 +349,114 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { verified: false, status: 'Unconfirmed' };
   };
 
+  // Verify email using 6-digit OTP code or pasted link/token
+  const verifyEmailOtp = async (
+    emailToVerify: string,
+    tokenOrLink: string
+  ): Promise<{ success: boolean; error?: string; status?: UserAccountStatus }> => {
+    try {
+      setIsLoading(true);
+      const cleanEmail = emailToVerify.trim().toLowerCase();
+      const raw = tokenOrLink.trim();
+
+      // Case A: User pasted a full URL or fragment containing hash params (e.g. from localhost:3000/#access_token=...)
+      if (raw.includes('access_token=') || (raw.includes('#') && raw.includes('='))) {
+        const hashPart = raw.includes('#') ? raw.split('#')[1] : raw;
+        const params = new URLSearchParams(hashPart);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            setIsLoading(false);
+            return { success: false, error: error.message };
+          }
+          if (data?.user) {
+            syncSupabaseAuthUser(data.user);
+            const targetUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+            const status: UserAccountStatus = targetUser?.role === 'student' ? 'Active' : 'Pending approval';
+            setIsLoading(false);
+            return { success: true, status };
+          }
+        }
+      }
+
+      // Case B: User pasted a confirmation URL with query param token/token_hash
+      let tokenToUse = raw;
+      if (raw.includes('token=') || raw.includes('token_hash=')) {
+        try {
+          const dummyUrl = new URL(raw.startsWith('http') ? raw : `https://example.com?${raw}`);
+          tokenToUse = dummyUrl.searchParams.get('token') || dummyUrl.searchParams.get('token_hash') || raw;
+        } catch {
+          // ignore
+        }
+      }
+
+      // Case C: Standard OTP or token verification with Supabase
+      // Try type 'signup'
+      let { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: tokenToUse,
+        type: 'signup',
+      });
+
+      // Fallback try type 'email'
+      if (error) {
+        const emailRetry = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: tokenToUse,
+          type: 'email',
+        });
+        if (!emailRetry.error) {
+          data = emailRetry.data;
+          error = null;
+        }
+      }
+
+      if (error) {
+        setIsLoading(false);
+        return { success: false, error: error.message || 'Invalid verification code or token.' };
+      }
+
+      if (data?.user) {
+        syncSupabaseAuthUser(data.user);
+      }
+
+      // Update local user state
+      let updatedStatus: UserAccountStatus = 'Active';
+      setUsers((prev) => {
+        return prev.map((u) => {
+          if (u.email.toLowerCase() === cleanEmail) {
+            updatedStatus = u.role === 'student' ? 'Active' : 'Pending approval';
+            const updated = { ...u, status: updatedStatus };
+            if (updatedStatus === 'Active') {
+              setUser(updated);
+              localStorage.setItem('campusgo_active_user_id', updated.id);
+            }
+            return updated;
+          }
+          return u;
+        });
+      });
+
+      setIsLoading(false);
+      return { success: true, status: updatedStatus };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err?.message || 'Failed to verify code.' };
+    }
+  };
+
   const login = async (identifier: string, pass: string) => {
     setIsLoading(true);
     const cleanId = identifier.trim().toLowerCase();
 
     // Match in user database (by email or matric number)
-    const matched = users.find(
+    let matched = users.find(
       (u) =>
         u.email.toLowerCase() === cleanId ||
         (u.matric_number && u.matric_number.toLowerCase() === cleanId)
@@ -336,12 +487,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Auto-upgrade unhashed legacy password in storage to encrypted format
     if (matched.password && !matched.password.startsWith('sha256_')) {
       const encrypted = await hashPassword(pass.trim());
-      setUsers((prev) => prev.map((u) => (u.id === matched.id ? { ...u, password: encrypted } : u)));
+      setUsers((prev) => prev.map((u) => (u.id === matched!.id ? { ...u, password: encrypted } : u)));
     }
 
     // Check Supabase Auth confirmation status if user registered with Supabase
     try {
-      const { error: supaErr } = await supabase.auth.signInWithPassword({
+      const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
         email: matched.email,
         password: pass.trim(),
       });
@@ -353,6 +504,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isUnconfirmed: true,
           email: matched.email,
         };
+      }
+
+      // If Supabase sign-in succeeded and email is confirmed:
+      if (supaData?.user?.email_confirmed_at) {
+        if (matched.status === 'Unconfirmed' || (matched.role === 'student' && (matched.status as string) === 'Pending approval')) {
+          const newStatus: UserAccountStatus = matched.role === 'student' ? 'Active' : 'Pending approval';
+          matched = { ...matched, status: newStatus };
+          setUsers((prev) => prev.map((u) => (u.id === matched!.id ? matched! : u)));
+        }
       }
     } catch (e) {
       // ignore
@@ -867,6 +1027,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         resendVerificationEmail,
         checkEmailVerification,
+        verifyEmailOtp,
         signup,
         logout,
         switchUser,

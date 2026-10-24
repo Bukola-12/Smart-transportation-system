@@ -4,14 +4,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import { Logo } from '../Common/Logo';
 import { GoogleIcon } from '../Common/GoogleIcon';
-import { AlertCircle, Sun, Moon, Eye, EyeOff, Mail } from 'lucide-react';
+import { GoogleSetupModal } from '../Common/GoogleSetupModal';
+import { AlertCircle, Sun, Moon, Eye, EyeOff, Mail, CheckCircle2, RefreshCw } from 'lucide-react';
 
 interface LoginViewProps {
   onGoToSignup: () => void;
 }
 
 export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
-  const { login, loginWithGoogle, resendVerificationEmail, isLoading } = useAuth();
+  const { login, loginWithGoogle, resendVerificationEmail, verifyEmailOtp, isLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const [identifier, setIdentifier] = useState('');
@@ -20,6 +21,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [unconfirmedEmail, setUnconfirmedEmail] = useState<string | null>(null);
   const [isResending, setIsResending] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +52,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
     setUnconfirmedEmail(null);
     const result = await loginWithGoogle();
     if (!result.success) {
-      setErrorMessage(result.error || 'Failed to initialize Google login.');
+      if (result.isProviderDisabled) {
+        setShowGoogleModal(true);
+      } else {
+        setErrorMessage(result.error || 'Failed to initialize Google login.');
+      }
     }
   };
 
@@ -59,6 +68,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
       toast.success(`Verification email resent to ${targetEmail}. Please check your inbox or spam.`);
     } else {
       toast.error(result.error || 'Failed to resend confirmation email.');
+    }
+  };
+
+  const handleManualVerify = async () => {
+    if (!unconfirmedEmail || !otpCode.trim()) return;
+    setIsVerifyingOtp(true);
+    const result = await verifyEmailOtp(unconfirmedEmail, otpCode.trim());
+    setIsVerifyingOtp(false);
+    if (result.success) {
+      toast.success('Email confirmed successfully! Signing you in...');
+      if (password) {
+        await login(unconfirmedEmail, password);
+      }
+      setUnconfirmedEmail(null);
+      setShowOtpInput(false);
+    } else {
+      toast.error(result.error || 'Invalid verification code or link.');
     }
   };
 
@@ -100,9 +126,35 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
                   <p className="text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
                     Your account registration for <strong>{unconfirmedEmail}</strong> is awaiting email verification. Please check your inbox for the Supabase confirmation link.
                   </p>
+                  <p className="text-amber-700 dark:text-amber-400 text-[11px] leading-relaxed pt-1">
+                    💡 If clicking the email link said <code>localhost:3000 does not exist</code>, Supabase already verified you! Simply enter your password below and click <strong>Sign In</strong>, or paste the code/link below.
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+
+              {showOtpInput ? (
+                <div className="space-y-2 pt-2 border-t border-amber-200/60 dark:border-amber-800/60">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Paste 6-digit code or Gmail link"
+                      className="flex-1 bg-white dark:bg-[#12151D] border border-amber-300 dark:border-amber-700 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <button
+                      type="button"
+                      disabled={isVerifyingOtp || !otpCode.trim()}
+                      onClick={handleManualVerify}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50"
+                    >
+                      {isVerifyingOtp ? 'Checking...' : 'Verify'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
                 <button
                   type="button"
                   disabled={isResending}
@@ -110,6 +162,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
                   className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isResending ? 'Sending...' : 'Resend Verification Email'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowOtpInput(!showOtpInput)}
+                  className="bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 text-amber-900 dark:text-amber-200 font-bold text-xs px-3 py-2 rounded-xl cursor-pointer"
+                >
+                  {showOtpInput ? 'Hide Code Input' : 'Enter Code / Link'}
                 </button>
                 <button
                   type="button"
@@ -131,13 +190,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
               <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
                 errorMessage.toLowerCase().includes('pending') ? 'text-amber-600' : 'text-red-500'
               }`} />
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {errorMessage.toLowerCase().includes('pending') && (
                   <span className="font-bold block text-xs uppercase tracking-wider text-amber-800 dark:text-amber-300">
                     Verification In Progress
                   </span>
                 )}
                 <span>{errorMessage}</span>
+                {errorMessage.includes('Google Sign-In is not enabled') && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleModal(true)}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl cursor-pointer transition-colors shadow-xs"
+                    >
+                      View Setup Instructions
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -234,6 +304,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onGoToSignup }) => {
           </form>
         </div>
       </div>
+
+      {/* Google Setup Guide Modal */}
+      <GoogleSetupModal
+        isOpen={showGoogleModal}
+        onClose={() => setShowGoogleModal(false)}
+      />
     </div>
   );
 };

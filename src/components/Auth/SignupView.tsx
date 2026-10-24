@@ -6,6 +6,7 @@ import { UserRole, VehicleType } from '../../types';
 import { ImageUpload } from '../Common/ImageUpload';
 import { Logo } from '../Common/Logo';
 import { GoogleIcon } from '../Common/GoogleIcon';
+import { GoogleSetupModal } from '../Common/GoogleSetupModal';
 import { 
   ArrowLeft, 
   AlertCircle, 
@@ -20,7 +21,11 @@ import {
   CheckCircle2, 
   Eye, 
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Info,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 interface SignupViewProps {
@@ -28,7 +33,7 @@ interface SignupViewProps {
 }
 
 export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
-  const { signup, loginWithGoogle, resendVerificationEmail, checkEmailVerification, isLoading, users } = useAuth();
+  const { signup, loginWithGoogle, resendVerificationEmail, checkEmailVerification, verifyEmailOtp, isLoading, users } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
 
@@ -48,8 +53,13 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
 
   // Email verification state for Supabase Auth
   const [verifyingEmail, setVerifyingEmail] = useState<string | null>(null);
+  const [savedPassword, setSavedPassword] = useState('');
+  const [manualToken, setManualToken] = useState('');
+  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [showLocalhostExplainer, setShowLocalhostExplainer] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
 
   // Pending approval screen state (for drivers & park admins)
   const [pendingRegistration, setPendingRegistration] = useState<{
@@ -127,6 +137,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     setErrorMessage(null);
 
     // Call AuthContext signup (which encrypts password and registers with Supabase Auth)
+    setSavedPassword(password);
     const result = await signup({
       fullName: fullName.trim(),
       email: cleanEmail,
@@ -173,14 +184,18 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
     setErrorMessage(null);
     const result = await loginWithGoogle();
     if (!result.success) {
-      setErrorMessage(result.error || 'Failed to initialize Google authentication.');
+      if (result.isProviderDisabled) {
+        setShowGoogleModal(true);
+      } else {
+        setErrorMessage(result.error || 'Failed to initialize Google authentication.');
+      }
     }
   };
 
   const handleCheckVerificationStatus = async () => {
     if (!verifyingEmail) return;
     setIsCheckingStatus(true);
-    const check = await checkEmailVerification(verifyingEmail);
+    const check = await checkEmailVerification(verifyingEmail, savedPassword);
     setIsCheckingStatus(false);
 
     if (check.verified) {
@@ -200,7 +215,33 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
         setVerifyingEmail(null);
       }
     } else {
-      toast.info('Email verification is pending. Please click the confirmation link in your Gmail or email inbox.');
+      toast.info('Email verification is pending. Please click the confirmation link in your Gmail, or paste the link/code below.');
+    }
+  };
+
+  const handleManualVerifyToken = async () => {
+    if (!verifyingEmail || !manualToken.trim()) return;
+    setIsVerifyingToken(true);
+    const result = await verifyEmailOtp(verifyingEmail, manualToken.trim());
+    setIsVerifyingToken(false);
+
+    if (result.success) {
+      if (role === 'student') {
+        toast.success('Email verified successfully! Welcome to CampusGo.');
+      } else {
+        toast.success('Email verified successfully! Your account is now listed for administrator approval.');
+        setPendingRegistration({
+          role,
+          fullName: fullName.trim(),
+          email: verifyingEmail,
+          phone: phone.trim(),
+          parkScope: role === 'park_admin' ? parkScope : undefined,
+          vehicleType: role === 'driver' ? preferredVehicleType : undefined,
+        });
+        setVerifyingEmail(null);
+      }
+    } else {
+      toast.error(result.error || 'Invalid confirmation code or link.');
     }
   };
 
@@ -258,7 +299,7 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
               </div>
             </div>
 
-            <div className="mb-6 p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 text-left space-y-2 text-xs">
+            <div className="mb-5 p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200/70 dark:border-emerald-800/50 text-left space-y-2 text-xs">
               <p className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-[#00C269]" />
                 Verification Process
@@ -271,6 +312,76 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
               <p className="text-[11px] text-gray-400 dark:text-gray-500 pt-1">
                 💡 Don't forget to check your Spam or Junk folder if the email takes a moment to appear.
               </p>
+            </div>
+
+            {/* Direct Code or Link Input */}
+            <div className="mb-5 p-4 bg-gray-50 dark:bg-[#1E2330] rounded-2xl border border-gray-200 dark:border-gray-700 text-left space-y-2">
+              <label className="block text-xs font-bold text-gray-800 dark:text-gray-200">
+                Enter 6-Digit Code or Paste Confirmation Link
+              </label>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                If clicking the link in your email showed "localhost:3000 does not exist", you can paste that link here or enter your 6-digit confirmation code.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="text"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="e.g. 123456 or paste verification URL"
+                  className="flex-1 bg-white dark:bg-[#12151D] border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs text-gray-900 dark:text-white font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button
+                  type="button"
+                  disabled={isVerifyingToken || !manualToken.trim()}
+                  onClick={handleManualVerifyToken}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {isVerifyingToken ? 'Verifying...' : 'Verify'}
+                </button>
+              </div>
+            </div>
+
+            {/* Troubleshooting Accordion for localhost:3000 */}
+            <div className="mb-6 rounded-2xl border border-amber-200/80 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 overflow-hidden text-left text-xs">
+              <button
+                type="button"
+                onClick={() => setShowLocalhostExplainer(!showLocalhostExplainer)}
+                className="w-full p-3.5 flex items-center justify-between text-amber-900 dark:text-amber-200 font-bold hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Why did the link say "localhost:3000 does not exist"?</span>
+                </div>
+                {showLocalhostExplainer ? (
+                  <ChevronUp className="w-4 h-4 text-amber-600" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-amber-600" />
+                )}
+              </button>
+
+              {showLocalhostExplainer && (
+                <div className="p-3.5 pt-0 text-[11px] text-amber-900 dark:text-amber-300 space-y-2 border-t border-amber-200/60 dark:border-amber-800/40">
+                  <p className="leading-relaxed">
+                    By default, new Supabase projects set their default <strong>Site URL</strong> to <code>http://localhost:3000</code>.
+                  </p>
+                  <p className="leading-relaxed font-semibold text-emerald-800 dark:text-emerald-300">
+                    ✅ Good news: When you clicked the link in your email, Supabase's server already confirmed your email address!
+                  </p>
+                  <p className="leading-relaxed">
+                    Simply click <strong>"I Have Verified My Email / Refresh"</strong> below, and your account will activate immediately.
+                  </p>
+                  <div className="p-2.5 rounded-xl bg-white/70 dark:bg-[#12151D] border border-amber-200 dark:border-amber-800 space-y-1 mt-1">
+                    <span className="font-bold text-gray-900 dark:text-white block">
+                      To permanently fix future emails in Supabase Dashboard:
+                    </span>
+                    <ol className="list-decimal list-inside space-y-0.5 text-gray-700 dark:text-gray-300">
+                      <li>Go to <strong>Authentication &rarr; URL Configuration</strong></li>
+                      <li>Set <strong>Site URL</strong> to: <code>{window.location.origin}</code></li>
+                      <li>Add <code>{window.location.origin}/**</code> to <strong>Redirect URLs</strong></li>
+                    </ol>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -466,7 +577,20 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
           {errorMessage && (
             <div className="mb-4 p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 text-xs sm:text-sm flex items-start gap-2.5 border border-red-100 dark:border-red-900">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
+              <div className="space-y-1">
+                <span>{errorMessage}</span>
+                {errorMessage.includes('Google Sign-In is not enabled') && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleModal(true)}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl cursor-pointer transition-colors shadow-xs"
+                    >
+                      View Setup Instructions
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -797,6 +921,12 @@ export const SignupView: React.FC<SignupViewProps> = ({ onBackToLogin }) => {
           </form>
         </div>
       </div>
+
+      {/* Google Setup Guide Modal */}
+      <GoogleSetupModal
+        isOpen={showGoogleModal}
+        onClose={() => setShowGoogleModal(false)}
+      />
     </div>
   );
 };
