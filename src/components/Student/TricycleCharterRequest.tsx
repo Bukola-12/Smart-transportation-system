@@ -22,7 +22,8 @@ import {
   ShieldCheck, 
   Sparkles,
   ChevronRight,
-  Info
+  Info,
+  Users
 } from 'lucide-react';
 
 interface TricycleCharterRequestProps {
@@ -73,6 +74,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
   };
 
   const [rideTier, setRideTier] = useState<'standard' | 'comfort' | 'preferred'>('standard');
+  const [passengerCount, setPassengerCount] = useState<number>(1);
   const [pickupNote, setPickupNote] = useState('');
   const [passengerPhone, setPassengerPhone] = useState(user?.phone || '');
   const [preferredDriverId, setPreferredDriverId] = useState<string>('');
@@ -206,6 +208,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
       requesterPhone: passengerPhone.trim() || user?.phone || undefined,
       pickup: finalPickup,
       destination: finalDestination,
+      passengerCount,
       pickupNote: pickupNote.trim() ? pickupNote.trim() : undefined,
       pickupImageUrl: finalImageUrl,
       whenType,
@@ -519,6 +522,58 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
             </p>
           </div>
         )}
+
+        {/* ======================================================== */}
+        {/* PASSENGER CAPACITY SELECTOR (1 - 3 Passengers)          */}
+        {/* ======================================================== */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-[#00C269]" />
+              Number of Passengers
+            </label>
+            <span className="text-[11px] font-semibold text-gray-400">
+              Tricycle Capacity: 1 - 3
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5">
+            {[
+              { count: 1, label: '1 Person', desc: 'Solo charter (Default)' },
+              { count: 2, label: '2 People', desc: 'You + 1 passenger' },
+              { count: 3, label: '3 People', desc: 'Full bench (Max 3)' },
+            ].map(({ count, label, desc }) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => setPassengerCount(count)}
+                className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer relative ${
+                  passengerCount === count
+                    ? 'border-[#00C269] bg-[#EBF7EE]/80 dark:bg-emerald-950/40 shadow-xs'
+                    : 'border-transparent bg-white dark:bg-[#151821] hover:border-gray-200 dark:hover:border-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs sm:text-sm font-black text-gray-900 dark:text-white">
+                    {label}
+                  </span>
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ${
+                      passengerCount === count
+                        ? 'bg-[#00C269] text-white shadow-xs'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {desc}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* ======================================================== */}
         {/* 3. PICKUP NOTE & IMAGE COMPRESSION SECTION              */}

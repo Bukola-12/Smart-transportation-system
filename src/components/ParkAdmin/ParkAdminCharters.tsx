@@ -149,11 +149,16 @@ export const ParkAdminCharters: React.FC = () => {
                   <td className="py-4 font-medium text-gray-800 dark:text-gray-200">
                     <div>
                       <span>{b.pickup} → {b.destination}</span>
-                      {b.preferred_driver_name && (
-                        <span className="block text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
-                          ★ Prefers: {b.preferred_driver_name}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                          👥 {b.passenger_count || 1} Person{(b.passenger_count || 1) > 1 ? 's' : ''}
                         </span>
-                      )}
+                        {b.preferred_driver_name && (
+                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                            • ★ Prefers: {b.preferred_driver_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
 
@@ -245,6 +250,14 @@ export const ParkAdminCharters: React.FC = () => {
                 <span className="text-gray-400">Route</span>
                 <span className="font-bold text-gray-900 dark:text-white text-right">
                   {selectedBookingForReview.pickup} → {selectedBookingForReview.destination}
+                </span>
+              </div>
+
+              {/* Passenger Capacity */}
+              <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-gray-800">
+                <span className="text-gray-400 text-xs">Passengers Boarding</span>
+                <span className="font-bold text-gray-900 dark:text-white text-xs">
+                  👥 {selectedBookingForReview.passenger_count || 1} Person{(selectedBookingForReview.passenger_count || 1) > 1 ? 's' : ''}
                 </span>
               </div>
 

@@ -191,8 +191,14 @@ export const DriverRequestsView: React.FC = () => {
                 )}
               </div>
 
-              <div className="text-xs text-gray-400 font-medium">
-                Passenger: <strong className="text-gray-800 dark:text-gray-200">{req.requester_name}</strong> • Time: <strong className="text-gray-800 dark:text-gray-200">{req.when_type}</strong> • Requested at: {req.created_at}
+              <div className="text-xs text-gray-400 font-medium flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span>Passenger: <strong className="text-gray-800 dark:text-gray-200">{req.requester_name}</strong></span>
+                <span>•</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">👥 {req.passenger_count || 1} Passenger{(req.passenger_count || 1) > 1 ? 's' : ''}</span>
+                <span>•</span>
+                <span>Time: <strong className="text-gray-800 dark:text-gray-200">{req.when_type}</strong></span>
+                <span>•</span>
+                <span>Requested: {req.created_at}</span>
               </div>
 
               {/* Passenger Contact & Landmark Details */}

@@ -166,11 +166,16 @@ export const CentralAdminBookings: React.FC = () => {
                   <td className="py-4 text-gray-900 dark:text-gray-200 font-medium">
                     <div>
                       <span>{b.pickup} → {b.destination}</span>
-                      {b.preferred_driver_name && (
-                        <span className="block text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                          ★ Prefers: {b.preferred_driver_name}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                          👥 {b.passenger_count || 1} Person{(b.passenger_count || 1) > 1 ? 's' : ''}
                         </span>
-                      )}
+                        {b.preferred_driver_name && (
+                          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                            • ★ Prefers: {b.preferred_driver_name}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">
@@ -245,6 +250,14 @@ export const CentralAdminBookings: React.FC = () => {
               <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-gray-800">
                 <span className="text-gray-400">Route</span>
                 <span className="font-bold text-gray-900 dark:text-white text-right">{reviewBooking.pickup} → {reviewBooking.destination}</span>
+              </div>
+
+              {/* Passengers Boarding */}
+              <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-gray-800">
+                <span className="text-gray-400 text-xs">Passengers Boarding</span>
+                <span className="font-bold text-gray-900 dark:text-white text-xs">
+                  👥 {reviewBooking.passenger_count || 1} Person{(reviewBooking.passenger_count || 1) > 1 ? 's' : ''}
+                </span>
               </div>
 
               {/* Student Details & Phone Contact */}

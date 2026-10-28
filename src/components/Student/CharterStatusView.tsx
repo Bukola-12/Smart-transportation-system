@@ -212,10 +212,16 @@ export const CharterStatusView: React.FC<CharterStatusViewProps> = ({
           </div>
 
           {/* Extra Details Row */}
-          <div className="pt-3 border-t border-gray-200/60 dark:border-gray-700/60 grid grid-cols-2 gap-2 text-xs">
+          <div className="pt-3 border-t border-gray-200/60 dark:border-gray-700/60 grid grid-cols-3 gap-2 text-xs">
             <div>
               <span className="text-gray-400 block text-[10px] uppercase font-bold">Departure</span>
               <span className="font-bold text-gray-800 dark:text-gray-200">{booking.when_type}</span>
+            </div>
+            <div>
+              <span className="text-gray-400 block text-[10px] uppercase font-bold">Boarding</span>
+              <span className="font-bold text-gray-800 dark:text-gray-200">
+                {booking.passenger_count || 1} Passenger{(booking.passenger_count || 1) > 1 ? 's' : ''}
+              </span>
             </div>
             <div>
               <span className="text-gray-400 block text-[10px] uppercase font-bold">Your Phone</span>

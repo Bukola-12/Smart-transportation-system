@@ -69,7 +69,7 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [confirmNotice, setConfirmNotice] = useState(false);
   const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(true);
-  const [incomingAlert, setIncomingAlert] = useState<{ id: string; pickup: string; destination: string; passenger: string } | null>(null);
+  const [incomingAlert, setIncomingAlert] = useState<{ id: string; pickup: string; destination: string; passenger: string; passengerCount?: number } | null>(null);
 
   const prevPendingCountRef = useRef(pendingRequests.length);
 
@@ -86,6 +86,7 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
           pickup: newest.pickup,
           destination: newest.destination,
           passenger: newest.requester_name,
+          passengerCount: newest.passenger_count || 1,
         });
       }
     }
@@ -214,7 +215,11 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
               <h4 className="text-sm sm:text-base font-black">
                 {incomingAlert.pickup} → {incomingAlert.destination}
               </h4>
-              <p className="text-xs text-emerald-100">Passenger: {incomingAlert.passenger}</p>
+              <p className="text-xs text-emerald-100 flex items-center gap-2">
+                <span>Passenger: {incomingAlert.passenger}</span>
+                <span>•</span>
+                <span>👥 {incomingAlert.passengerCount || 1} Person{(incomingAlert.passengerCount || 1) > 1 ? 's' : ''}</span>
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -466,9 +471,11 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
                 <h4 className="text-lg font-black text-gray-900 dark:text-white">
                   {activeBooking.pickup} → {activeBooking.destination}
                 </h4>
-                <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
-                  Passenger: <strong className="font-bold text-gray-900 dark:text-white">{activeBooking.requester_name}</strong>
-                </p>
+                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                  <span>Passenger: <strong className="font-bold text-gray-900 dark:text-white">{activeBooking.requester_name}</strong></span>
+                  <span>•</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">👥 {activeBooking.passenger_count || 1} Passenger{(activeBooking.passenger_count || 1) > 1 ? 's' : ''}</span>
+                </div>
               </div>
 
               {/* Passenger Phone Display (Plain text, not a call button) */}
@@ -573,9 +580,13 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
                         <h5 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white">
                           {req.pickup} → {req.destination}
                         </h5>
-                        <span className="text-[11px] text-gray-400 block mt-0.5">
-                          Passenger: {req.requester_name} • {req.when_type}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-400 mt-0.5">
+                          <span>Passenger: {req.requester_name}</span>
+                          <span>•</span>
+                          <span className="font-bold text-[#00C269]">👥 {req.passenger_count || 1} Person{(req.passenger_count || 1) > 1 ? 's' : ''}</span>
+                          <span>•</span>
+                          <span>{req.when_type}</span>
+                        </div>
                       </div>
 
                       {req.pickup_note && (

@@ -75,6 +75,7 @@ interface AppContextType {
     scheduledTime?: string;
     preferredDriverId?: string;
     preferredDriverName?: string;
+    passengerCount?: number;
   }) => CharterBooking;
   acceptCharterRequest: (
     bookingId: string,
@@ -117,15 +118,53 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Core State with LocalStorage Persistence
+  // 1. Core State with LocalStorage Persistence & Freshness Auto-Sync
   const [drivers, setDrivers] = useState<DriverRecord[]>(() => {
-    const saved = localStorage.getItem('campusgo_drivers');
-    return saved ? JSON.parse(saved) : INITIAL_DRIVERS;
+    try {
+      const version = localStorage.getItem('campusgo_storage_version');
+      if (version !== 'campusgo_v3_live') {
+        localStorage.setItem('campusgo_storage_version', 'campusgo_v3_live');
+        return INITIAL_DRIVERS;
+      }
+      const saved = localStorage.getItem('campusgo_drivers');
+      if (saved) {
+        const parsed: DriverRecord[] = JSON.parse(saved);
+        // If stored confirmation timestamps are from an old session (> 12 hours old, e.g. 116h ago), refresh to initial live drivers
+        const isStaleSession = parsed.some(
+          (d) => d.shift_status === 'On duty' && Date.now() - new Date(d.last_confirmed_at).getTime() > 12 * 60 * 60 * 1000
+        );
+        if (isStaleSession) {
+          return INITIAL_DRIVERS;
+        }
+        return parsed;
+      }
+    } catch {
+      // Fallback
+    }
+    return INITIAL_DRIVERS;
   });
 
   const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    const saved = localStorage.getItem('campusgo_vehicles');
-    return saved ? JSON.parse(saved) : INITIAL_VEHICLES;
+    try {
+      const version = localStorage.getItem('campusgo_storage_version');
+      if (version !== 'campusgo_v3_live') {
+        return INITIAL_VEHICLES;
+      }
+      const saved = localStorage.getItem('campusgo_vehicles');
+      if (saved) {
+        const parsed: Vehicle[] = JSON.parse(saved);
+        const isStaleSession = parsed.some(
+          (v) => v.last_updated && (v.last_updated.includes('h') || v.last_updated.includes('day'))
+        );
+        if (isStaleSession) {
+          return INITIAL_VEHICLES;
+        }
+        return parsed;
+      }
+    } catch {
+      // Fallback
+    }
+    return INITIAL_VEHICLES;
   });
 
   const [bookings, setBookings] = useState<CharterBooking[]>(() => {
@@ -547,6 +586,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     scheduledTime?: string;
     preferredDriverId?: string;
     preferredDriverName?: string;
+    passengerCount?: number;
   }): CharterBooking => {
     const bookingNumber = Math.floor(100 + Math.random() * 900);
     const bookingId = `BK-0${bookingNumber}`;
@@ -565,6 +605,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       scheduled_time: data.scheduledTime,
       preferred_driver_id: data.preferredDriverId,
       preferred_driver_name: data.preferredDriverName,
+      passenger_count: data.passengerCount || 1,
       status: 'Pending',
       created_at: timeStr,
     };
@@ -573,7 +614,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity(
       bookingId,
       'Bookings',
-      `Request created: ${data.pickup} → ${data.destination}${data.preferredDriverName ? ` (Preferred: ${data.preferredDriverName})` : ''}`,
+      `Request created: ${data.pickup} → ${data.destination} (${data.passengerCount || 1} passenger${(data.passengerCount || 1) > 1 ? 's' : ''})${data.preferredDriverName ? ` (Preferred: ${data.preferredDriverName})` : ''}`,
       data.requesterName,
       'Student app'
     );

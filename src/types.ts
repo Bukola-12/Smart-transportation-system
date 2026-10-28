@@ -106,6 +106,7 @@ export interface CharterBooking {
   scheduled_time?: string;
   preferred_driver_id?: string;
   preferred_driver_name?: string;
+  passenger_count?: number; // 1 to 3 passengers
   status: CharterStatus;
   assigned_driver_id?: string;
   assigned_driver_name?: string;
