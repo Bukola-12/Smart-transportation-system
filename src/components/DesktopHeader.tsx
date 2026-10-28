@@ -40,6 +40,10 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   const { theme, toggleTheme } = useTheme();
 
   const pendingDriversCount = users.filter((u) => u.role === 'driver' && u.status === 'Pending approval').length;
+  const isBusDriver =
+    user?.role === 'driver' &&
+    (user?.preferred_vehicle_type === 'bus' ||
+      user?.vehicle_assigned?.toLowerCase().startsWith('bus'));
 
   let items: { id: string; label: string; icon: React.ReactNode; badge?: number }[] = [];
 
@@ -53,7 +57,9 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({
   } else if (role === 'driver') {
     items = [
       { id: 'shift', label: 'Shift & Status', icon: <Home className="w-4 h-4" /> },
-      { id: 'requests', label: 'Charter Requests', icon: <Car className="w-4 h-4" />, badge: badgeCounts?.requests },
+      ...(!isBusDriver
+        ? [{ id: 'requests', label: 'Charter Requests', icon: <Car className="w-4 h-4" />, badge: badgeCounts?.requests }]
+        : []),
       { id: 'activity', label: 'Activity Log', icon: <Clock className="w-4 h-4" /> },
       { id: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
     ];

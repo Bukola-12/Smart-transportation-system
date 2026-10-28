@@ -198,19 +198,10 @@ export const DriverRequestsView: React.FC = () => {
               {/* Passenger Contact & Landmark Details */}
               <div className="space-y-2 pt-1 text-xs">
                 {req.requester_phone && (
-                  <div className="flex items-center justify-between bg-[#F6F8FA] dark:bg-[#1E2330] p-3 rounded-2xl">
-                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 font-medium">
-                      <Phone className="w-3.5 h-3.5 text-[#00C269]" />
-                      <span>Passenger Phone:</span>
-                      <span className="font-mono font-bold">{req.requester_phone}</span>
-                    </div>
-                    <a
-                      href={`tel:${req.requester_phone}`}
-                      className="inline-flex items-center gap-1.5 bg-[#00C269] hover:bg-[#00AB5D] text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition-transform active:scale-95 cursor-pointer"
-                    >
-                      <Phone className="w-3 h-3" />
-                      <span>Call</span>
-                    </a>
+                  <div className="flex items-center gap-2 bg-[#F6F8FA] dark:bg-[#1E2330] p-3 rounded-2xl text-gray-700 dark:text-gray-300 font-medium">
+                    <Phone className="w-3.5 h-3.5 text-[#00C269]" />
+                    <span>Passenger Phone:</span>
+                    <span className="font-mono font-bold text-gray-900 dark:text-white">{req.requester_phone}</span>
                   </div>
                 )}
 

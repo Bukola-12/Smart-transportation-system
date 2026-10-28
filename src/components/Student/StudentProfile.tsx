@@ -90,31 +90,71 @@ export const StudentProfile: React.FC = () => {
 
           {/* Warnings & Suspensions Box */}
           {((user?.warnings && user.warnings.length > 0) || user?.status === 'Suspended') && (
-            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-2">
+            <div className="p-5 rounded-3xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
-                  Disciplinary Record
+                <span className="text-xs font-black text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                  Disciplinary Report
                 </span>
                 <span className="text-[10px] font-bold bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-full">
-                  {user.warnings?.length || 0} Warning(s)
+                  {user?.status === 'Suspended' ? 'Suspended' : `${user?.warnings?.length || 0} Warning(s)`}
                 </span>
               </div>
 
-              {user.status === 'Suspended' && (
-                <div className="p-3 bg-red-100/80 dark:bg-red-950/60 rounded-xl text-xs text-red-800 dark:text-red-300">
-                  <span className="font-bold block mb-0.5">Account Suspended</span>
-                  {user.suspended_until
-                    ? `Until ${new Date(user.suspended_until).toLocaleDateString()}`
-                    : 'Indefinitely'}
-                  {user.suspension_reason && <p className="mt-1 italic">"{user.suspension_reason}"</p>}
+              {user?.status === 'Suspended' && (
+                <div className="p-4 bg-red-100/90 dark:bg-red-950/70 rounded-2xl text-xs text-red-900 dark:text-red-200 space-y-2 border border-red-200 dark:border-red-900">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-sm text-red-700 dark:text-red-400">Account Suspended</span>
+                    <span className="font-bold text-[10px] uppercase bg-red-200 dark:bg-red-900/80 px-2 py-0.5 rounded-md text-red-800 dark:text-red-200">
+                      Active Sanction
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 pt-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-red-700 dark:text-red-400 font-semibold">Duration:</span>
+                      <span className="font-bold">
+                        {user.suspended_until
+                          ? `Until ${new Date(user.suspended_until).toLocaleDateString()} (${new Date(user.suspended_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                          : 'Indefinitely (Pending Hearing)'}
+                      </span>
+                    </div>
+                    {user.suspended_by && (
+                      <div className="flex justify-between">
+                        <span className="text-red-700 dark:text-red-400 font-semibold">Issued By:</span>
+                        <span className="font-bold">
+                          {user.suspended_by} {user.suspended_by_role === 'park_admin' ? '(Park Admin)' : '(Central Admin)'}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-red-700 dark:text-red-400 font-semibold">Restrictions:</span>
+                      <span className="font-bold text-red-800 dark:text-red-300">Tricycle charters blocked</span>
+                    </div>
+                  </div>
+
+                  {user.suspension_reason && (
+                    <div className="mt-2 bg-white/70 dark:bg-black/30 p-2.5 rounded-xl border border-red-200/60 dark:border-red-900/40">
+                      <span className="font-bold block text-[10px] text-red-700 dark:text-red-400 uppercase tracking-wider mb-0.5">
+                        Official Reason:
+                      </span>
+                      <p className="italic font-medium">"{user.suspension_reason}"</p>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-red-600 dark:text-red-400 pt-1">
+                    To appeal or request account reactivation, submit a formal appeal to the Central Transport Office.
+                  </p>
                 </div>
               )}
 
-              {user.warnings && user.warnings.length > 0 && (
+              {user?.warnings && user.warnings.length > 0 && (
                 <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-400 block">
+                    Recorded Warnings:
+                  </span>
                   {user.warnings.map((w) => (
-                    <div key={w.id} className="text-[11px] text-amber-900 dark:text-amber-300">
-                      <span className="font-semibold">• {w.date}:</span> {w.reason}
+                    <div key={w.id} className="text-[11px] text-amber-900 dark:text-amber-300 bg-white/60 dark:bg-black/20 p-2 rounded-xl">
+                      <span className="font-semibold">• {w.date} (By {w.issued_by}):</span> {w.reason}
                     </div>
                   ))}
                 </div>

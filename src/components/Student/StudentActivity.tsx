@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { StatusBadge } from '../Common/StatusBadge';
-import { Clock, ArrowRight, Plus } from 'lucide-react';
+import { Clock, ArrowRight, Plus, AlertTriangle } from 'lucide-react';
 
 interface StudentActivityProps {
   onSelectBooking: (bookingId: string) => void;
@@ -16,13 +16,42 @@ export const StudentActivity: React.FC<StudentActivityProps> = ({
   const { bookings } = useApp();
   const { user } = useAuth();
 
+  const isSuspended = user?.status === 'Suspended';
+
   const studentBookings = bookings.filter(
     (b) => b.requester_id === user?.id || b.requester_name === user?.full_name
   );
 
   return (
-    <div className="pb-28 pt-4 md:py-8 px-5 md:px-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="pb-28 pt-4 md:py-8 px-5 md:px-8 max-w-5xl mx-auto space-y-6">
+      {/* Disciplinary Record Banner if Suspended */}
+      {isSuspended && (
+        <div className="p-5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-3xl space-y-3 shadow-xs">
+          <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-extrabold text-sm sm:text-base">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+            <span>Disciplinary Suspension Notice</span>
+          </div>
+          <p className="text-xs sm:text-sm text-red-800 dark:text-red-300 leading-relaxed">
+            Your student account is under an active transport suspension
+            {user?.suspended_until ? (
+              <span className="font-bold"> active until {new Date(user.suspended_until).toLocaleDateString()}</span>
+            ) : (
+              <span className="font-bold"> active indefinitely</span>
+            )}
+            {user?.suspended_by ? (
+              <span> issued by <strong className="font-semibold">{user.suspended_by}</strong></span>
+            ) : ''}.
+          </p>
+          {user?.suspension_reason && (
+            <div className="text-xs bg-white dark:bg-[#1A1E29] p-3 rounded-2xl border border-red-200 dark:border-red-900/50 text-red-900 dark:text-red-200">
+              <span className="font-bold text-red-700 dark:text-red-400 block mb-0.5">Reason:</span>
+              "{user.suspension_reason}"
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
             Your Charter Activity

@@ -319,6 +319,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return {
             ...d,
             operational_status: newStatus,
+            current_location: newStatus === 'On trip' ? 'En route' : d.current_location,
             last_confirmed_at: new Date().toISOString(),
             updated_by: actorName,
             updated_by_role: method === 'Driver app' ? 'driver' : 'admin',
@@ -328,15 +329,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // Also sync the assigned vehicle status
-    const driver = drivers.find((d) => d.id === driverId);
-    if (driver?.vehicle_assigned) {
+    // Also sync the assigned vehicle status and location
+    const targetDriver = drivers.find((d) => d.id === driverId);
+    if (targetDriver) {
       setVehicles((prev) =>
         prev.map((v) => {
-          if (v.vehicle_number === driver.vehicle_assigned) {
+          if (v.vehicle_number === targetDriver.vehicle_assigned || v.assigned_driver_id === targetDriver.id) {
             return {
               ...v,
               status: newStatus,
+              current_location: newStatus === 'On trip' ? 'En route' : v.current_location,
               last_updated: 'Just now',
               updated_by: actorName,
             };
@@ -379,13 +381,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     method: 'Driver app' | 'On behalf' | 'Admin'
   ) => {
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const targetDriver = drivers.find((d) => d.id === driverId);
+
     setDrivers((prev) =>
       prev.map((d) => {
         if (d.id === driverId) {
           logActivity(
             d.name,
             'Driver status',
-            `Shift: Not checked in → On duty`,
+            `Shift: ${d.shift_status} → On duty (At ${location})`,
             actorName,
             method
           );
@@ -402,6 +406,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return d;
       })
     );
+
+    // Also sync the assigned vehicle so park count and availability update dynamically
+    if (targetDriver) {
+      setVehicles((prev) =>
+        prev.map((v) => {
+          if (v.vehicle_number === targetDriver.vehicle_assigned || v.assigned_driver_id === targetDriver.id) {
+            return {
+              ...v,
+              current_location: location,
+              status: 'Available',
+              assigned_driver_id: targetDriver.id,
+              assigned_driver_name: targetDriver.name,
+              last_updated: 'Just now',
+              updated_by: actorName,
+            };
+          }
+          return v;
+        })
+      );
+    }
   };
 
   // Driver End Shift (FR-06)
@@ -410,26 +434,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     actorName: string,
     method: 'Driver app' | 'On behalf' | 'Admin'
   ) => {
+    const targetDriver = drivers.find((d) => d.id === driverId);
+
     setDrivers((prev) =>
       prev.map((d) => {
         if (d.id === driverId) {
           logActivity(
             d.name,
             'Driver status',
-            `Shift: On duty → Shift ended`,
+            `Shift: ${d.shift_status} → Shift ended`,
             actorName,
             method
           );
           return {
             ...d,
             shift_status: 'Shift ended',
-            operational_status: 'Available',
+            operational_status: 'Unconfirmed',
+            last_confirmed_at: new Date().toISOString(),
             updated_by: actorName,
           };
         }
         return d;
       })
     );
+
+    // Also sync the assigned vehicle so it goes offline/unconfirmed
+    if (targetDriver) {
+      setVehicles((prev) =>
+        prev.map((v) => {
+          if (v.vehicle_number === targetDriver.vehicle_assigned || v.assigned_driver_id === targetDriver.id) {
+            return {
+              ...v,
+              status: 'Unconfirmed',
+              last_updated: 'Just now',
+              updated_by: actorName,
+            };
+          }
+          return v;
+        })
+      );
+    }
   };
 
   // Update Vehicle Location (FR-15, FR-16, FR-17)
@@ -473,10 +517,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // If a driver is assigned to this vehicle, sync their location too
     const veh = vehicles.find((v) => v.id === vehicleId);
-    if (veh?.assigned_driver_id) {
+    if (veh) {
       setDrivers((prev) =>
         prev.map((d) => {
-          if (d.id === veh.assigned_driver_id) {
+          if ((veh.assigned_driver_id && d.id === veh.assigned_driver_id) || d.vehicle_assigned === veh.vehicle_number) {
             return {
               ...d,
               current_location: newLocation,

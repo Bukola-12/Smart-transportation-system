@@ -66,6 +66,7 @@ const MainApp: React.FC = () => {
   // Active navigation tabs for different roles
   const [studentTab, setStudentTab] = useState<string>('home');
   const [studentActiveBookingId, setStudentActiveBookingId] = useState<string | null>(null);
+  const [studentSelectedDestination, setStudentSelectedDestination] = useState<string | undefined>();
 
   const [driverTab, setDriverTab] = useState<string>('shift');
   const [parkAdminTab, setParkAdminTab] = useState<string>('overview');
@@ -73,6 +74,13 @@ const MainApp: React.FC = () => {
 
   // Park Admin current park selection
   const [currentPark, setCurrentPark] = useState<'Campus Gate' | 'SUB'>('Campus Gate');
+
+  // Sync park selection with user scope
+  React.useEffect(() => {
+    if (user?.role === 'park_admin' && user.park_scope && user.park_scope !== 'All') {
+      setCurrentPark(user.park_scope as 'Campus Gate' | 'SUB');
+    }
+  }, [user]);
 
   // Central Admin Modal
   const [isAddAdminOpen, setIsAddAdminOpen] = useState(false);
@@ -140,7 +148,11 @@ const MainApp: React.FC = () => {
       if (studentTab === 'home') {
         return (
           <StudentHome
-            onGoToCharter={() => setStudentTab('charter')}
+            onGoToCharter={(dest) => {
+              setStudentSelectedDestination(dest);
+              setStudentActiveBookingId(null);
+              setStudentTab('charter');
+            }}
             onGoToProfile={() => setStudentTab('profile')}
           />
         );
@@ -156,7 +168,11 @@ const MainApp: React.FC = () => {
         }
         return (
           <TricycleCharterRequest
-            onBack={() => setStudentTab('home')}
+            initialDestination={studentSelectedDestination}
+            onBack={() => {
+              setStudentSelectedDestination(undefined);
+              setStudentTab('home');
+            }}
             onRequestSubmitted={(id) => setStudentActiveBookingId(id)}
           />
         );
@@ -170,6 +186,7 @@ const MainApp: React.FC = () => {
             }}
             onGoToCharter={() => {
               setStudentActiveBookingId(null);
+              setStudentSelectedDestination(undefined);
               setStudentTab('charter');
             }}
           />
@@ -237,13 +254,20 @@ const MainApp: React.FC = () => {
   const setActiveTab = (tab: string) => {
     if (user.role === 'student') {
       setStudentTab(tab);
-      if (tab !== 'charter') setStudentActiveBookingId(null);
+      if (tab !== 'charter') {
+        setStudentActiveBookingId(null);
+        setStudentSelectedDestination(undefined);
+      }
     } else if (user.role === 'driver') {
       setDriverTab(tab);
     } else {
       setParkAdminTab(tab);
     }
   };
+
+  const canSwitchPark =
+    Boolean(user.permissions?.manage_bookings_other_parks) ||
+    user.park_scope === 'All';
 
   return (
     <div className="min-h-screen bg-[#F6F8FA] dark:bg-[#0D1017] text-gray-900 dark:text-white flex flex-col justify-between selection:bg-emerald-500 selection:text-white transition-colors">
@@ -253,7 +277,11 @@ const MainApp: React.FC = () => {
         activeTab={getActiveTab()}
         setActiveTab={setActiveTab}
         currentPark={currentPark}
-        onSwitchPark={() => setCurrentPark(currentPark === 'Campus Gate' ? 'SUB' : 'Campus Gate')}
+        onSwitchPark={
+          canSwitchPark
+            ? () => setCurrentPark(currentPark === 'Campus Gate' ? 'SUB' : 'Campus Gate')
+            : undefined
+        }
       />
 
       {/* Main Responsive Content Area (Lazy loaded per role on demand) */}

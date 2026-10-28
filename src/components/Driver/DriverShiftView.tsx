@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { StatusBadge } from '../Common/StatusBadge';
 import { OperationalStatus, VehicleLocation } from '../../types';
+import { playDispatchChime } from '../../lib/soundAlert';
 import { 
   Clock, 
   AlertTriangle, 
@@ -15,8 +16,12 @@ import {
   PauseCircle, 
   Navigation,
   Car,
+  Bus,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 interface DriverShiftViewProps {
@@ -47,6 +52,12 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
   const currentDriver = drivers.find((d) => d.name === user?.full_name || d.user_id === user?.id) || drivers[0];
   const isOnDuty = currentDriver.shift_status === 'On duty';
 
+  const isBusDriver =
+    currentDriver.vehicle_type === 'bus' ||
+    user?.preferred_vehicle_type === 'bus' ||
+    user?.vehicle_assigned?.toLowerCase().startsWith('bus') ||
+    currentDriver.vehicle_assigned.toLowerCase().startsWith('bus');
+
   const currentVehicle = vehicles.find((v) => v.vehicle_number === currentDriver.vehicle_assigned) || vehicles[0];
 
   const pendingRequests = bookings.filter((b) => b.status === 'Pending');
@@ -57,6 +68,29 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [confirmNotice, setConfirmNotice] = useState(false);
+  const [soundAlertsEnabled, setSoundAlertsEnabled] = useState(true);
+  const [incomingAlert, setIncomingAlert] = useState<{ id: string; pickup: string; destination: string; passenger: string } | null>(null);
+
+  const prevPendingCountRef = useRef(pendingRequests.length);
+
+  // Hands-free sound chime and in-app banner for tricycle drivers so they don't get distracted checking their phones while driving
+  useEffect(() => {
+    if (isOnDuty && !isBusDriver && pendingRequests.length > prevPendingCountRef.current) {
+      const newest = pendingRequests[0];
+      if (newest) {
+        if (soundAlertsEnabled) {
+          playDispatchChime();
+        }
+        setIncomingAlert({
+          id: newest.id,
+          pickup: newest.pickup,
+          destination: newest.destination,
+          passenger: newest.requester_name,
+        });
+      }
+    }
+    prevPendingCountRef.current = pendingRequests.length;
+  }, [pendingRequests.length, isOnDuty, isBusDriver, soundAlertsEnabled]);
 
   const handleStatusChange = (status: OperationalStatus) => {
     updateDriverOperationalStatus(
@@ -166,6 +200,45 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
         </div>
       )}
 
+      {/* Hands-free Audio Alert Notification Banner for Tricycle Drivers */}
+      {incomingAlert && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-[#00C269] text-white rounded-3xl shadow-xl flex items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5 text-white animate-bounce" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-emerald-100 block">
+                🔔 New Dispatch Alert
+              </span>
+              <h4 className="text-sm sm:text-base font-black">
+                {incomingAlert.pickup} → {incomingAlert.destination}
+              </h4>
+              <p className="text-xs text-emerald-100">Passenger: {incomingAlert.passenger}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                handleAcceptRequest(incomingAlert.id);
+                setIncomingAlert(null);
+              }}
+              className="bg-white text-emerald-800 hover:bg-gray-100 font-black text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
+            >
+              Accept Trip
+            </button>
+            <button
+              type="button"
+              onClick={() => setIncomingAlert(null)}
+              className="p-2 text-white/80 hover:text-white rounded-xl hover:bg-white/10 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ======================================================== */}
       {/* 1. BOLT DRIVER ONLINE STATUS HERO BAR                   */}
       {/* ======================================================== */}
@@ -196,11 +269,23 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
               <span>•</span>
               <span>Stationed at <strong className="text-white">{currentDriver.current_location}</strong></span>
               <span>•</span>
-              <span className="font-semibold text-emerald-400">{currentDriver.operational_status}</span>
+              <span className="font-semibold text-emerald-400">{isOnDuty ? currentDriver.operational_status : 'Offline'}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {isOnDuty && !isBusDriver && (
+              <button
+                type="button"
+                onClick={() => setSoundAlertsEnabled(!soundAlertsEnabled)}
+                title={soundAlertsEnabled ? 'Sound alerts active' : 'Sound alerts muted'}
+                className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all flex items-center gap-1.5 border border-white/10 cursor-pointer"
+              >
+                {soundAlertsEnabled ? <Volume2 className="w-4 h-4 text-[#00C269]" /> : <VolumeX className="w-4 h-4 text-gray-400" />}
+                <span className="hidden sm:inline">{soundAlertsEnabled ? 'Audio ON' : 'Muted'}</span>
+              </button>
+            )}
+
             {isOnDuty ? (
               <button
                 type="button"
@@ -237,19 +322,22 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
                   Operational Status
                 </h3>
                 <p className="text-xs text-gray-400">
-                  Broadcast your immediate availability to students & park admins
+                  {isOnDuty
+                    ? 'Broadcast your immediate availability to students & park admins'
+                    : 'Shift is currently inactive'}
                 </p>
               </div>
-              <StatusBadge status={currentDriver.operational_status} />
+              <StatusBadge status={isOnDuty ? currentDriver.operational_status : 'Unconfirmed'} />
             </div>
 
             {/* 3 Tactile Status Buttons */}
-            <div className="grid grid-cols-3 gap-2 p-1.5 bg-[#F6F8FA] dark:bg-[#1E2330] rounded-2xl">
+            <div className={`grid grid-cols-3 gap-2 p-1.5 bg-[#F6F8FA] dark:bg-[#1E2330] rounded-2xl ${!isOnDuty ? 'opacity-50 pointer-events-none' : ''}`}>
               <button
                 type="button"
+                disabled={!isOnDuty}
                 onClick={() => handleStatusChange('Available')}
                 className={`py-3 px-2 text-center text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
-                  currentDriver.operational_status === 'Available'
+                  currentDriver.operational_status === 'Available' && isOnDuty
                     ? 'bg-white dark:bg-[#2A3142] text-[#00C269] shadow-sm font-black'
                     : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
                 }`}
@@ -260,9 +348,10 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
 
               <button
                 type="button"
+                disabled={!isOnDuty}
                 onClick={() => handleStatusChange('On trip')}
                 className={`py-3 px-2 text-center text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
-                  currentDriver.operational_status === 'On trip'
+                  currentDriver.operational_status === 'On trip' && isOnDuty
                     ? 'bg-white dark:bg-[#2A3142] text-amber-500 shadow-sm font-black'
                     : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
                 }`}
@@ -273,9 +362,10 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
 
               <button
                 type="button"
+                disabled={!isOnDuty}
                 onClick={() => handleStatusChange('On break')}
                 className={`py-3 px-2 text-center text-xs sm:text-sm font-bold rounded-xl transition-all cursor-pointer flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
-                  currentDriver.operational_status === 'On break'
+                  currentDriver.operational_status === 'On break' && isOnDuty
                     ? 'bg-white dark:bg-[#2A3142] text-blue-500 shadow-sm font-black'
                     : 'text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white'
                 }`}
@@ -285,21 +375,29 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
               </button>
             </div>
 
-            {/* Status Freshness Confirmation Button */}
-            <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <span className="text-gray-400 font-medium">
-                Last verified: {currentDriver.operational_status === 'Unconfirmed' ? '⚠️ Stale (>2 hours ago)' : 'Recently confirmed'}
-              </span>
+            {!isOnDuty && (
+              <div className="p-3 bg-gray-50 dark:bg-gray-800/40 rounded-2xl text-xs text-gray-500 dark:text-gray-400">
+                You are offline. Operational status is turned off until you start your shift.
+              </div>
+            )}
 
-              <button
-                type="button"
-                onClick={handleConfirmFreshness}
-                className="bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-black font-bold px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{confirmNotice ? 'Status Confirmed!' : 'Confirm Status Freshness'}</span>
-              </button>
-            </div>
+            {/* Status Freshness Confirmation Button */}
+            {isOnDuty && (
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <span className="text-gray-400 font-medium">
+                  Last verified: {currentDriver.operational_status === 'Unconfirmed' ? '⚠️ Stale (>2 hours ago)' : 'Recently confirmed'}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmFreshness}
+                  className="bg-black hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-200 text-white dark:text-black font-bold px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer inline-flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{confirmNotice ? 'Status Confirmed!' : 'Confirm Status Freshness'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Vehicle Location Selector */}
@@ -309,30 +407,46 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
                 Vehicle Location
               </h3>
               <p className="text-xs text-gray-400">
-                Where is your vehicle parked right now?
+                {currentDriver.operational_status === 'On trip'
+                  ? 'Vehicle is currently en route with passenger'
+                  : 'Where is your vehicle parked right now?'}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {(['Campus Gate', 'SUB', 'En route'] as const).map((loc) => {
-                const isSelected = currentDriver.current_location === loc;
-                return (
-                  <button
-                    key={loc}
-                    type="button"
-                    onClick={() => handleLocationChange(loc)}
-                    className={`p-3.5 rounded-2xl text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center gap-2 ${
-                      isSelected
-                        ? 'bg-[#00C269] text-white shadow-sm font-black'
-                        : 'bg-[#F6F8FA] dark:bg-[#1E2330] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#2A3142]'
-                    }`}
-                  >
-                    <Navigation className="w-3.5 h-3.5" />
-                    <span>{loc} Car Park</span>
-                  </button>
-                );
-              })}
-            </div>
+            {/* If driver is On trip, vehicle location is turned off / locked */}
+            {currentDriver.operational_status === 'On trip' ? (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <span className="font-bold block">Vehicle Location Locked to "En route"</span>
+                <p>
+                  While an active charter trip is in progress, manual park selection is turned off. Complete or conclude the trip to relocate.
+                </p>
+              </div>
+            ) : !isOnDuty ? (
+              <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/40 text-xs text-gray-500 dark:text-gray-400">
+                Stationed at <strong>{currentDriver.current_location}</strong>. Location selection activates when you go online.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(['Campus Gate', 'SUB', 'En route'] as const).map((loc) => {
+                  const isSelected = currentDriver.current_location === loc;
+                  return (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => handleLocationChange(loc)}
+                      className={`p-3.5 rounded-2xl text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center gap-2 ${
+                        isSelected
+                          ? 'bg-[#00C269] text-white shadow-sm font-black'
+                          : 'bg-[#F6F8FA] dark:bg-[#1E2330] text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-[#2A3142]'
+                      }`}
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>{loc === 'En route' ? 'En route' : `${loc} Park`}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -357,21 +471,12 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
                 </p>
               </div>
 
-              {/* Direct Passenger Phone Link */}
+              {/* Passenger Phone Display (Plain text, not a call button) */}
               {activeBooking.requester_phone && (
-                <div className="flex items-center justify-between bg-white dark:bg-[#151821] p-3 rounded-2xl">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300 font-medium">
-                    <Phone className="w-3.5 h-3.5 text-[#00C269]" />
-                    <span>Passenger:</span>
-                    <span className="font-mono font-bold">{activeBooking.requester_phone}</span>
-                  </div>
-                  <a
-                    href={`tel:${activeBooking.requester_phone}`}
-                    className="inline-flex items-center gap-1 bg-[#00C269] hover:bg-[#00AB5D] text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-xs"
-                  >
-                    <Phone className="w-3 h-3" />
-                    Call
-                  </a>
+                <div className="flex items-center gap-2 bg-white dark:bg-[#151821] p-3 rounded-2xl text-xs text-gray-700 dark:text-gray-300 font-medium border border-gray-100 dark:border-gray-800">
+                  <Phone className="w-3.5 h-3.5 text-[#00C269]" />
+                  <span>Passenger Phone:</span>
+                  <span className="font-mono font-bold text-gray-900 dark:text-white">{activeBooking.requester_phone}</span>
                 </div>
               )}
 
@@ -400,71 +505,107 @@ export const DriverShiftView: React.FC<DriverShiftViewProps> = ({ onGoToProfile 
             </div>
           )}
 
-          {/* Incoming Charter Requests (Bolt Driver Offer Style) */}
-          <div className="bg-white dark:bg-[#151821] p-6 rounded-3xl border border-gray-100 dark:border-[#252B3A] shadow-xs space-y-4 transition-colors">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-gray-900 dark:text-white flex items-center gap-2">
-                <Car className="w-4 h-4 text-[#00C269]" />
-                <span>Pending Charters ({pendingRequests.length})</span>
-              </h3>
+          {/* Right Column: Bus Driver Route Card vs Tricycle Driver Charter Offers */}
+          {isBusDriver ? (
+            <div className="bg-white dark:bg-[#151821] p-6 sm:p-7 rounded-3xl border border-gray-100 dark:border-[#252B3A] shadow-xs space-y-4 transition-colors">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-[#00C269] flex items-center justify-center">
+                  <Bus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-gray-900 dark:text-white">
+                    Campus Shuttle Operations
+                  </h3>
+                  <p className="text-xs text-gray-400">Regular campus shuttle schedule</p>
+                </div>
+              </div>
+
+              <div className="bg-[#F8F9FA] dark:bg-[#1A1E29] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 text-xs space-y-2.5">
+                <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-gray-800">
+                  <span className="text-gray-400 font-medium">Service Route</span>
+                  <span className="font-extrabold text-gray-900 dark:text-white">Campus Gate ⇄ SUB Car Park</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-gray-200/60 dark:border-gray-800">
+                  <span className="text-gray-400 font-medium">Bus Vehicle</span>
+                  <span className="font-mono font-bold text-[#00C269]">{currentDriver.vehicle_assigned}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400 font-medium">Boarding Protocol</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Park Queue Boarding Sheds</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-400 leading-relaxed">
+                Campus shuttle buses service designated park-to-park routes. Passenger ticketing and boarding are managed at the terminal sheds.
+              </p>
             </div>
-
-            {pendingRequests.length === 0 ? (
-              <div className="text-center py-6 text-gray-400 text-xs">
-                No pending charter requests right now. When students submit a booking, it will appear here.
+          ) : (
+            /* Incoming Charter Requests (Bolt Driver Offer Style for Tricycles) */
+            <div className="bg-white dark:bg-[#151821] p-6 rounded-3xl border border-gray-100 dark:border-[#252B3A] shadow-xs space-y-4 transition-colors">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  <Car className="w-4 h-4 text-[#00C269]" />
+                  <span>Pending Charters ({pendingRequests.length})</span>
+                </h3>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingRequests.slice(0, 3).map((req) => (
-                  <div
-                    key={req.id}
-                    className="p-4 rounded-2xl bg-[#F6F8FA] dark:bg-[#1E2330] border border-gray-100 dark:border-gray-800 space-y-2.5 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold text-gray-400">#{req.id}</span>
-                      {req.preferred_driver_id === currentDriver.id && (
-                        <span className="text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-200 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
-                          ★ For YOU
+
+              {pendingRequests.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-xs">
+                  No pending charter requests right now. When students submit a booking, it will appear here with an instant audio chime.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingRequests.slice(0, 3).map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-4 rounded-2xl bg-[#F6F8FA] dark:bg-[#1E2330] border border-gray-100 dark:border-gray-800 space-y-2.5 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold text-gray-400">#{req.id}</span>
+                        {req.preferred_driver_id === currentDriver.id && (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-200 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
+                            ★ For YOU
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h5 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white">
+                          {req.pickup} → {req.destination}
+                        </h5>
+                        <span className="text-[11px] text-gray-400 block mt-0.5">
+                          Passenger: {req.requester_name} • {req.when_type}
                         </span>
+                      </div>
+
+                      {req.pickup_note && (
+                        <p className="text-[11px] text-gray-600 dark:text-gray-300 italic bg-white dark:bg-[#151821] p-2 rounded-xl">
+                          "{req.pickup_note}"
+                        </p>
                       )}
-                    </div>
 
-                    <div>
-                      <h5 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white">
-                        {req.pickup} → {req.destination}
-                      </h5>
-                      <span className="text-[11px] text-gray-400 block mt-0.5">
-                        Passenger: {req.requester_name} • {req.when_type}
-                      </span>
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => rejectCharterRequest(req.id, currentDriver.id, currentDriver.name)}
+                          className="text-xs font-bold text-gray-500 hover:text-red-500 px-3 py-1.5 cursor-pointer"
+                        >
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAcceptRequest(req.id)}
+                          className="bg-[#00C269] hover:bg-[#00AB5D] text-white text-xs font-black px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
+                        >
+                          Accept Trip
+                        </button>
+                      </div>
                     </div>
-
-                    {req.pickup_note && (
-                      <p className="text-[11px] text-gray-600 dark:text-gray-300 italic bg-white dark:bg-[#151821] p-2 rounded-xl">
-                        "{req.pickup_note}"
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => rejectCharterRequest(req.id, currentDriver.id, currentDriver.name)}
-                        className="text-xs font-bold text-gray-500 hover:text-red-500 px-3 py-1.5 cursor-pointer"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAcceptRequest(req.id)}
-                        className="bg-[#00C269] hover:bg-[#00AB5D] text-white text-xs font-black px-4 py-2 rounded-xl shadow-xs transition-all cursor-pointer"
-                      >
-                        Accept Trip
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

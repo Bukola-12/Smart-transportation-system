@@ -77,13 +77,13 @@ export const ALL_CAMPUS_LOCATIONS: string[] = CAMPUS_LOCATIONS_CATEGORIZED.flatM
 );
 
 export const POPULAR_DESTINATIONS: string[] = [
-  'Main Library',
-  'Moremi Hall',
-  'Awolowo Hall',
-  'White House',
-  'Faculty of Technology',
+  'Hezekiah Oluwasanmi Library (Main Library)',
+  'Moremi Hall (Female)',
+  'Awolowo Hall (Male)',
+  'Faculty of Science (White House)',
+  'Faculty of Technology (Spider Building)',
   'Senate Building',
-  'Health Centre',
+  'University Health Centre (Medical Centre)',
   'New Market',
 ];
 

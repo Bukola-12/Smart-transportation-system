@@ -29,14 +29,35 @@ export const UpdateDriverModal: React.FC<UpdateDriverModalProps> = ({
 
   const assignedVehicle = vehicles.find((v) => v.vehicle_number === driver.vehicle_assigned);
 
-  const handleSave = () => {
-    if (status !== driver.operational_status) {
+  const handleSave = async () => {
+    const isStatusChanged = status !== driver.operational_status;
+    const isLocationChanged = location !== driver.current_location;
+
+    if (isStatusChanged || isLocationChanged) {
+      const changes: string[] = [];
+      if (isStatusChanged) changes.push(`Operational Status: "${driver.operational_status}" → "${status}"`);
+      if (isLocationChanged) changes.push(`Location: "${driver.current_location}" → "${location}"`);
+
+      const ok = await confirm({
+        title: 'Confirm Driver Fleet Update',
+        message: `Please confirm the following fleet changes for driver ${driver.name} (${driver.vehicle_assigned}):\n\n• ${changes.join('\n• ')}`,
+        confirmText: 'Confirm Update',
+        cancelText: 'Cancel',
+        variant: 'info',
+        implicationText: `Fleet status for driver ${driver.name} was successfully updated.`,
+        cancelImplicationText: 'Driver status update cancelled.',
+      });
+
+      if (!ok) return;
+    }
+
+    if (isStatusChanged) {
       updateDriverOperationalStatus(driver.id, status, adminName, 'Admin');
     } else {
       confirmDriverStatus(driver.id, adminName);
     }
 
-    if (assignedVehicle && location !== driver.current_location) {
+    if (assignedVehicle && isLocationChanged) {
       const destination = location === 'En route' ? (driver.current_location === 'Campus Gate' ? 'SUB' : 'Campus Gate') : undefined;
       updateVehicleLocation(assignedVehicle.id, location, destination, adminName, 'Admin');
     }

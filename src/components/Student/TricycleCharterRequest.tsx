@@ -28,11 +28,13 @@ import {
 interface TricycleCharterRequestProps {
   onBack: () => void;
   onRequestSubmitted: (bookingId: string) => void;
+  initialDestination?: string;
 }
 
 export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
   onBack,
   onRequestSubmitted,
+  initialDestination,
 }) => {
   const { submitCharterRequest, drivers } = useApp();
   const { user } = useAuth();
@@ -47,9 +49,28 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
   const [customPickup, setCustomPickup] = useState('');
   const [isCustomPickup, setIsCustomPickup] = useState(false);
 
-  const [destination, setDestination] = useState('Hezekiah Oluwasanmi Library (Main Library)');
+  const [destination, setDestination] = useState(
+    initialDestination || 'Hezekiah Oluwasanmi Library (Main Library)'
+  );
   const [customDestination, setCustomDestination] = useState('');
   const [isCustomDestination, setIsCustomDestination] = useState(false);
+
+  React.useEffect(() => {
+    if (initialDestination) {
+      setIsCustomDestination(false);
+      setDestination(initialDestination);
+    }
+  }, [initialDestination]);
+
+  const formatRelativeTime = (isoString?: string) => {
+    if (!isoString) return 'recently';
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    return `${diffHours}h ${diffMins % 60}m ago`;
+  };
 
   const [rideTier, setRideTier] = useState<'standard' | 'comfort' | 'preferred'>('standard');
   const [pickupNote, setPickupNote] = useState('');
@@ -227,26 +248,30 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
 
       {/* Disciplinary Suspension Alert if Suspended */}
       {isSuspended && (
-        <div className="mb-6 p-5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-3xl space-y-2.5 shadow-xs">
+        <div className="mb-6 p-5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 rounded-3xl space-y-3 shadow-xs">
           <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-extrabold text-sm sm:text-base">
             <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
             <span>Account Suspended from Booking Charters</span>
           </div>
           <p className="text-xs sm:text-sm text-red-800 dark:text-red-300 leading-relaxed">
-            Your campus account is temporarily suspended from charter booking
+            Your student account has an active disciplinary restriction
             {user?.suspended_until ? (
-              <span className="font-bold"> until {new Date(user.suspended_until).toLocaleDateString()}</span>
+              <span className="font-bold"> active until {new Date(user.suspended_until).toLocaleDateString()}</span>
             ) : (
-              <span className="font-bold"> indefinitely</span>
+              <span className="font-bold"> active indefinitely</span>
             )}
             {user?.suspended_by ? (
-              <span> by <strong className="font-semibold">{user.suspended_by}</strong></span>
+              <span> issued by <strong className="font-semibold">{user.suspended_by}{user.suspended_by_role === 'park_admin' ? ' (Park Admin)' : ' (Central Admin)'}</strong></span>
             ) : ''}.
           </p>
           {user?.suspension_reason && (
-            <div className="text-xs bg-white dark:bg-[#1A1E29] p-3 rounded-2xl border border-red-200 dark:border-red-900/50 text-red-900 dark:text-red-200">
-              <span className="font-bold text-red-700 dark:text-red-400 block mb-0.5">Reason:</span>
-              "{user.suspension_reason}"
+            <div className="text-xs bg-white dark:bg-[#1A1E29] p-3.5 rounded-2xl border border-red-200 dark:border-red-900/50 text-red-900 dark:text-red-200 space-y-1">
+              <span className="font-bold text-red-700 dark:text-red-400 block text-[11px] uppercase tracking-wider">Official Suspension Reason:</span>
+              <p className="font-medium italic">"{user.suspension_reason}"</p>
+              <div className="pt-2 text-[11px] text-gray-500 dark:text-gray-400 border-t border-red-100 dark:border-red-900/40 flex items-center justify-between">
+                <span>Restrictions: Tricycle bookings blocked</span>
+                <span>Appeal: Contact Central Admin</span>
+              </div>
             </div>
           )}
         </div>
@@ -358,7 +383,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
               Popular Campus Spots
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {POPULAR_DESTINATIONS.slice(0, 5).map((spot) => (
+              {POPULAR_DESTINATIONS.map((spot) => (
                 <button
                   key={spot}
                   type="button"
@@ -408,10 +433,10 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
                 </span>
               </div>
               <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 dark:text-white">
-                Standard
+                Standard Trip
               </h4>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                Closest available tricycle (1-3 min)
+                Standard campus charter ride to your chosen stop or faculty along campus routes.
               </p>
             </div>
 
@@ -439,7 +464,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
                 Private Trip
               </h4>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                Straight to your hall/faculty door
+                Exclusive full-tricycle hire with direct door-to-door drop-off and no intermediate stops.
               </p>
             </div>
 
@@ -485,7 +510,7 @@ export const TricycleCharterRequest: React.FC<TricycleCharterRequestProps> = ({
               <option value="">Any Available Driver (Recommended - Fastest Dispatch)</option>
               {onDutyDrivers.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name} · {d.vehicle_assigned} ({d.vehicle_type === 'tricycle' ? 'Tricycle' : 'Bus'}) · At {d.current_location} {d.operational_status === 'Available' ? '· Ready now' : `· (${d.operational_status})`}
+                  {d.name} · {d.vehicle_assigned} ({d.vehicle_type === 'tricycle' ? 'Tricycle' : 'Bus'}) · At {d.current_location} {d.operational_status === 'Available' ? '· Ready now' : `· (${d.operational_status})`} · Confirmed {formatRelativeTime(d.last_confirmed_at)}
                 </option>
               ))}
             </select>

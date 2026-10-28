@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useToast } from '../../context/ToastContext';
 import { VehicleLocation } from '../../types';
-import { X } from 'lucide-react';
+import { X, CheckCircle } from 'lucide-react';
 
 interface CheckInDriverModalProps {
   currentParkName: 'Campus Gate' | 'SUB';
@@ -15,6 +16,7 @@ export const CheckInDriverModal: React.FC<CheckInDriverModalProps> = ({
   onClose,
 }) => {
   const { drivers, driverCheckIn } = useApp();
+  const { toast } = useToast();
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<VehicleLocation>(currentParkName);
 
@@ -24,12 +26,16 @@ export const CheckInDriverModal: React.FC<CheckInDriverModalProps> = ({
     e.preventDefault();
     if (!selectedDriverId) return;
 
+    const targetDriver = drivers.find((d) => d.id === selectedDriverId);
+
     driverCheckIn(
       selectedDriverId,
       selectedLocation,
       adminName,
       'On behalf'
     );
+
+    toast.success(`Driver ${targetDriver?.name || 'checked in'} is now On Duty at ${selectedLocation} (Status: Available).`);
     onClose();
   };
 

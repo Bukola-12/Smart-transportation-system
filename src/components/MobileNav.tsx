@@ -19,8 +19,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   setActiveTab,
   badgeCounts,
 }) => {
-  const { users } = useAuth();
+  const { user, users } = useAuth();
   const pendingDriversCount = users.filter((u) => u.role === 'driver' && u.status === 'Pending approval').length;
+  const isBusDriver =
+    user?.role === 'driver' &&
+    (user?.preferred_vehicle_type === 'bus' ||
+      user?.vehicle_assigned?.toLowerCase().startsWith('bus'));
 
   let items: { id: string; label: string; icon: React.ReactNode; badge?: number }[] = [];
 
@@ -34,7 +38,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   } else if (role === 'driver') {
     items = [
       { id: 'shift', label: 'Shift', icon: <Home className="w-5 h-5" /> },
-      { id: 'requests', label: 'Orders', icon: <Car className="w-5 h-5" />, badge: badgeCounts?.requests },
+      ...(!isBusDriver
+        ? [{ id: 'requests', label: 'Orders', icon: <Car className="w-5 h-5" />, badge: badgeCounts?.requests }]
+        : []),
       { id: 'activity', label: 'Activity', icon: <Clock className="w-5 h-5" /> },
       { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
     ];

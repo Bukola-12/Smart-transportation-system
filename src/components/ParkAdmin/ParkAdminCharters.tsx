@@ -138,14 +138,10 @@ export const ParkAdminCharters: React.FC = () => {
                   <td className="py-4 whitespace-nowrap">
                     <span className="font-bold text-gray-900 dark:text-white block">{b.requester_name}</span>
                     {b.requester_phone && (
-                      <a
-                        href={`tel:${b.requester_phone}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1 mt-0.5"
-                      >
+                      <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1 mt-0.5">
                         <Phone className="w-3 h-3" />
                         {b.requester_phone}
-                      </a>
+                      </span>
                     )}
                   </td>
 
@@ -166,14 +162,10 @@ export const ParkAdminCharters: React.FC = () => {
                     <div>
                       <span className="font-semibold block">{b.assigned_driver_name || 'Unassigned'}</span>
                       {b.driver_phone && (
-                        <a
-                          href={`tel:${b.driver_phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[11px] font-mono text-gray-500 hover:underline inline-flex items-center gap-1"
-                        >
+                        <span className="text-[11px] font-mono font-bold text-gray-600 dark:text-gray-300 inline-flex items-center gap-1">
                           <Phone className="w-3 h-3" />
                           {b.driver_phone}
-                        </a>
+                        </span>
                       )}
                     </div>
                   </td>
@@ -263,13 +255,10 @@ export const ParkAdminCharters: React.FC = () => {
                   <span className="font-bold text-gray-900 dark:text-white">{selectedBookingForReview.requester_name}</span>
                 </div>
                 {selectedBookingForReview.requester_phone && (
-                  <a
-                    href={`tel:${selectedBookingForReview.requester_phone}`}
-                    className="inline-flex items-center gap-1.5 bg-[#00A86B] hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Call Passenger</span>
-                  </a>
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-[#1E2330] px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-gray-800">
+                    <Phone className="w-3.5 h-3.5 text-[#00A86B]" />
+                    <span>{selectedBookingForReview.requester_phone}</span>
+                  </div>
                 )}
               </div>
 
@@ -285,13 +274,10 @@ export const ParkAdminCharters: React.FC = () => {
                   )}
                 </div>
                 {selectedBookingForReview.driver_phone && (
-                  <a
-                    href={`tel:${selectedBookingForReview.driver_phone}`}
-                    className="inline-flex items-center gap-1.5 bg-gray-900 hover:bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:text-black font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs transition-colors"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Call Driver</span>
-                  </a>
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-[#1E2330] px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-gray-800">
+                    <Phone className="w-3.5 h-3.5 text-gray-500" />
+                    <span>{selectedBookingForReview.driver_phone}</span>
+                  </div>
                 )}
               </div>
 
@@ -428,18 +414,14 @@ export const ParkAdminCharters: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Direct Driver Call Link */}
-                <div className="pt-2">
-                  <a
-                    href={`tel:${acceptFeedback.driverPhone}`}
-                    className="w-full bg-[#00C269] hover:bg-[#00AB5D] active:scale-[0.98] text-white font-black text-sm py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                  >
-                    <Phone className="w-4 h-4" />
-                    <span>Call Driver ({acceptFeedback.driverName} · {acceptFeedback.driverPhone}) to Notify</span>
-                  </a>
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400 text-center block mt-1.5">
-                    Click to phone and notify the driver directly.
-                  </span>
+                {/* Driver Contact Info Display */}
+                <div className="pt-2 bg-[#F6F8FA] dark:bg-[#1E2330] p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-[#00A86B]" />
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Driver Phone:</span>
+                    <span className="font-mono font-black text-sm text-gray-900 dark:text-white">{acceptFeedback.driverPhone}</span>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{acceptFeedback.driverName}</span>
                 </div>
 
                 <button
